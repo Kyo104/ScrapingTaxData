@@ -2,10 +2,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import ElementNotInteractableException, TimeoutException, NoSuchElementException
+from selenium.common.exceptions import ElementNotInteractableException, TimeoutException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from PIL import Image
 from bs4 import BeautifulSoup
@@ -17,6 +15,7 @@ import requests
 import base64
 from io import BytesIO
 import cairosvg
+from selenium.webdriver.chrome.service import Service
 
 
 print('hello hoadondientu')
@@ -27,17 +26,22 @@ print('hello hoadondientu')
 def initialize_driver(use_window_size=True):
       """Khởi tạo trình duyệt Chrome."""
       chrome_options = Options()
-      chrome_options.add_argument("--headless=new")
-      chrome_options.add_argument("--disable-gpu")
+      chrome_options.add_argument("--headless=new") # Chạy Chrome ở chế độ headless
+      chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
+      chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
+      chrome_options.add_argument("--disable-dev-shm-usage")  # Vô hiệu hóa dev-shm usage
+      chrome_options.add_argument("--remote-debugging-port=9222")  # Cấu hình cổng cho DevTools
+      chrome_options.add_argument("--disable-software-rasterizer")  # Tắt phần mềm rasterizer (để tránh lỗi bộ nhớ thấp)
+      chrome_options.add_argument("--window-size=1920x1080")  # Đảm bảo kích thước cửa sổ tối ưu cho headless
+      chrome_options.add_argument("--force-device-scale-factor=1")  # Điều chỉnh tỷ lệ hiển thị của thiết bị
       
       # Thêm --window-size chỉ khi cần thiết
       if use_window_size == False:
             chrome_options.add_argument("--window-size=1920,1080")
       
-      chrome_options.add_argument("--force-device-scale-factor=1")
       chrome_options.add_argument("--disable-blink-features=AutomationControlled")
       
-      driver = webdriver.Chrome(options=chrome_options)
+      driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)
       
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
       time.sleep(2)
@@ -118,7 +122,7 @@ def crawl_img(driver):
             print(f"Đã xảy ra lỗi: {e}")
 
 
-API_KEY = "bd0c772fd58bf0354019baecbdda41d2"  # Thay bằng API Key của bạn từ AntiCaptcha
+API_KEY = "4ee709e730f4bf34942708b743e5f9df"  # Thay bằng API Key của bạn từ AntiCaptcha
 
 # Hàm gửi ảnh đến AntiCaptcha
 def solve_captcha(image_base64):
