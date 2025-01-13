@@ -16,6 +16,10 @@ import base64
 from io import BytesIO
 import cairosvg
 from selenium.webdriver.chrome.service import Service
+import psycopg2
+from psycopg2.extras import execute_values
+from datetime import datetime
+from pathlib import Path
 
 
 print('hello hoadondientu')
@@ -769,6 +773,244 @@ def extract_img_hoa_don_ban_ra(driver):
       except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
 
+# Cấu hình kết nối cơ sở dữ liệu
+DB_CONFIG = {
+      'dbname': 'hoadondientu',
+      'user': 'postgres',
+      'password': '123456',
+      'host': 'localhost',
+      'port': 5432
+}
+
+# Tạo bảng nếu chưa tồn tại
+CREATE_TABLE_QUERY = """
+CREATE TABLE IF NOT EXISTS invoices (
+      id SERIAL PRIMARY KEY,
+      mau_so VARCHAR(255),
+      ky_hieu VARCHAR(255),
+      so_hoa_don VARCHAR(255) UNIQUE,
+      ngay_lap DATE,
+      tong_tien NUMERIC,
+      trang_thai VARCHAR(255),
+      image_path VARCHAR(255),
+      image_data BYTEA,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mua_vao (
+      id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+      ky_hieu VARCHAR(255),
+      so_hoa_don VARCHAR(255),
+      tong_tien NUMERIC,
+      image_path VARCHAR(255),
+      image_data BYTEA,
+      thong_tin_nguoi_ban TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ban_ra (
+      id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+      ky_hieu VARCHAR(255),
+      so_hoa_don VARCHAR(255),
+      tong_tien NUMERIC,
+      image_path VARCHAR(255),
+      image_data BYTEA,
+      thong_tin_nguoi_mua TEXT
+);
+"""
+
+# Hàm kết nối PostgreSQL
+def get_connection():
+      return psycopg2.connect(**DB_CONFIG)
+
+def convert_date(date_str):
+      """Chuyển định dạng ngày từ 'DD/MM/YYYY' sang 'YYYY-MM-DD'."""
+      return datetime.strptime(date_str, '%d/%m/%Y').strftime('%Y-%m-%d')
+
+# Hàm lưu dữ liệu vào PostgreSQL
+def save_to_database(data, image_path, loai_hoa_don):
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                for _, row in data.iterrows():
+                    invoice_query = """
+                    INSERT INTO invoices (mau_so, ky_hieu, so_hoa_don, ngay_lap, tong_tien, trang_thai, image_path, image_data)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (so_hoa_don) DO UPDATE
+                    SET mau_so = EXCLUDED.mau_so,
+                        ngay_lap = EXCLUDED.ngay_lap,
+                        tong_tien = EXCLUDED.tong_tien,
+                        trang_thai = EXCLUDED.trang_thai,
+                        image_path = EXCLUDED.image_path,
+                        image_data = EXCLUDED.image_data
+                    RETURNING id;
+                    """
+                    invoice_values = (
+                        row.get('mau_so'),
+                        row.get('ky_hieu'),
+                        row.get('so_hoa_don'),
+                        convert_date(row.get('ngay_lap')),
+                        row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
+                        row.get('trang_thai'),
+                        image_path,
+                        open(image_path, 'rb').read() if image_path else None
+                    )
+
+                    cur.execute(invoice_query, invoice_values)
+                    invoice_id = cur.fetchone()[0]
+
+                    if loai_hoa_don == "mua_vao":
+                        mua_vao_query = """
+                        INSERT INTO mua_vao (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_data, thong_tin_nguoi_ban)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE
+                        SET ky_hieu = EXCLUDED.ky_hieu,
+                            so_hoa_don = EXCLUDED.so_hoa_don,
+                            tong_tien = EXCLUDED.tong_tien,
+                            image_path = EXCLUDED.image_path,
+                            image_data = EXCLUDED.image_data,
+                            thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban;
+                        """
+                        mua_vao_values = (
+                            invoice_id,
+                            row.get('ky_hieu'),
+                            row.get('so_hoa_don'),
+                            row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
+                            image_path,
+                            open(image_path, 'rb').read() if image_path else None,
+                            row.get('thong_tin_nguoi_ban')
+                        )
+                        cur.execute(mua_vao_query, mua_vao_values)
+
+                    elif loai_hoa_don == "ban_ra":
+                        ban_ra_query = """
+                        INSERT INTO ban_ra (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_data, thong_tin_nguoi_mua)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE
+                        SET ky_hieu = EXCLUDED.ky_hieu,
+                            so_hoa_don = EXCLUDED.so_hoa_don,
+                            tong_tien = EXCLUDED.tong_tien,
+                            image_path = EXCLUDED.image_path,
+                            image_data = EXCLUDED.image_data,
+                            thong_tin_nguoi_mua = EXCLUDED.thong_tin_nguoi_mua;
+                        """
+                        ban_ra_values = (
+                            invoice_id,
+                            row.get('ky_hieu'),
+                            row.get('so_hoa_don'),
+                            row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
+                            image_path,
+                            open(image_path, 'rb').read() if image_path else None,
+                            row.get('thong_tin_nguoi_mua')
+                        )
+                        cur.execute(ban_ra_query, ban_ra_values)
+
+        print(f"Dữ liệu hóa đơn {loai_hoa_don} đã được lưu thành công.")
+    except Exception as e:
+        print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
+
+def get_latest_file(pattern):
+    files = list(Path('.').glob(pattern))
+    if not files:
+      print(f"No files found matching pattern: {pattern}")
+      return None
+    latest_file = max(files, key=os.path.getmtime)
+    return str(latest_file)
+
+latest_mua_vao_csv = get_latest_file("hoa_don_mua_vao*.csv")
+latest_ban_ra_csv = get_latest_file("hoa_don_ban_ra*.csv")
+latest_png_mua = get_latest_file("hoadon_muavao_chitiet_stt_*.png")
+latest_png_ban = get_latest_file("hoadon_banra_chitiet_stt_*.png")
+
+if latest_mua_vao_csv:
+    print(f"Using latest mua vao file: {latest_mua_vao_csv}")
+if latest_ban_ra_csv:
+    print(f"Using latest ban ra file: {latest_ban_ra_csv}")
+if latest_png_mua:
+    print(f"Using latest PNG_mua file: {latest_png_mua}")
+if latest_png_ban:
+    print(f"Using latest PNG_ban file: {latest_png_ban}")
+
+# Quy trình chính
+def main_workflow():
+      # Tạo bảng nếu chưa tồn tại
+      with get_connection() as conn:
+            with conn.cursor() as cur:
+                  cur.execute(CREATE_TABLE_QUERY)
+
+      # Đường dẫn tới tệp dữ liệu
+      # csv_files = ["hoa_don_ban_ra.cs+v", "hoa_don_mua_vao.csv"]
+      # png_mua_path = "hoadon_muavao_chitiet_stt_1.png"
+
+      # Lấy file mới nhất
+      csv_files = [
+        get_latest_file("hoa_don_ban_ra*.csv"),
+        get_latest_file("hoa_don_mua_vao*.csv"),
+      ]
+      png_mua_path = get_latest_file("hoadon_muavao_chitiet_stt_*.png")
+      png_ban_path = get_latest_file("hoadon_banra_chitiet_stt_*.png")
+
+      for csv_file in csv_files:
+            if not os.path.exists(csv_file):
+                  print(f"Không tìm thấy tệp: {csv_file}")
+                  continue
+
+            # Đọc dữ liệu từ tệp CSV
+            data = pd.read_csv(csv_file)
+
+            # Chuẩn hóa tên cột
+            data.rename(columns={
+                  'Ký hiệumẫu số': 'mau_so',
+                  'Ký hiệuhóa đơn': 'ky_hieu',
+                  'Số hóa đơn': 'so_hoa_don',
+                  'Ngày lập': 'ngay_lap',
+                  'Thông tin người bán': 'thong_tin_nguoi_ban',
+                  'Thông tin hóa đơn': 'thong_tin_nguoi_mua',
+                  'Tổng tiềnthanh toán': 'tong_tien',
+                  'Trạng tháihóa đơn': 'trang_thai'
+            }, inplace=True)
+
+            # Kiểm tra các cột cần thiết
+            required_columns = ['mau_so', 'ky_hieu', 'so_hoa_don', 'ngay_lap', 'tong_tien', 'trang_thai']
+            if not all(col in data.columns for col in required_columns):
+                  print(f"Các cột cần thiết không có trong tệp: {csv_file}")
+                  continue
+
+            # Xử lý giá trị thiếu của cột "thong_tin_nguoi_ban"
+            if 'thong_tin_nguoi_ban' not in data.columns:
+                  data['thong_tin_nguoi_ban'] = None
+            
+            if 'thong_tin_nguoi_mua' not in data.columns:
+                  data['thong_tin_nguoi_mua'] = None
+
+            # Lưu dữ liệu vào cơ sở dữ liệu
+            if "mua_vao" in csv_file:
+                  save_to_database(data, png_mua_path, "mua_vao")
+            else:
+                  save_to_database(data, png_ban_path, "ban_ra")
+            print(f"Dữ liệu từ {csv_file} đã được lưu vào cơ sở dữ liệu.")
+
+def fetch_image_data(table_name):
+    query = f"SELECT id, image_path, image_data FROM {table_name};"
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                rows = cur.fetchall()
+                for row in rows:
+                    record_id, image_path, image_data = row
+                    print(f"ID: {record_id}, Path: {image_path}")
+                    if image_data:
+                        # Determine file extension from the path or default to '.png'
+                        file_extension = image_path.split('.')[-1] if image_path else 'png'
+                        save_path = f"{table_name}_retrieved_{record_id}.{file_extension}"
+                        
+                        # Save the image to a file
+                        with open(save_path, 'wb') as f:
+                            f.write(image_data)
+                        print(f"Image saved to: {save_path}")
+    except Exception as e:
+        print(f"Error fetching image data from {table_name}: {e}")
+
 # ====  ( finish chạy chương trình )  ====
 def main():
       """Chạy tất cả các Function trong quy trình crawl data hoadondientu"""
@@ -796,6 +1038,8 @@ def main():
             crawl_hoa_don_ban_ra(driver)
             extract_table_ban_ra_to_csv(driver, output_file_ra)
             extract_img_hoa_don_ban_ra(driver)
+            fetch_image_data('mua_vao')
+            fetch_image_data('ban_ra')
       except Exception as e:
             print(f"An error occurred: {e}")
       # finally:
