@@ -988,6 +988,8 @@ def main_workflow():
             else:
                   save_to_database(data, png_ban_path, "ban_ra")
             print(f"Dữ liệu từ {csv_file} đã được lưu vào cơ sở dữ liệu.")
+      fetch_image_data('mua_vao')
+      fetch_image_data('ban_ra')
 
 def fetch_image_data(table_name):
     query = f"SELECT id, image_path, image_data FROM {table_name};"
@@ -1000,16 +1002,16 @@ def fetch_image_data(table_name):
                     record_id, image_path, image_data = row
                     print(f"ID: {record_id}, Path: {image_path}")
                     if image_data:
-                        # Determine file extension from the path or default to '.png'
+                        # Quyết định đuôi file hình ảnh là .png
                         file_extension = image_path.split('.')[-1] if image_path else 'png'
                         save_path = f"{table_name}_retrieved_{record_id}.{file_extension}"
                         
-                        # Save the image to a file
+                        # Lưu hình ảnh
                         with open(save_path, 'wb') as f:
                             f.write(image_data)
-                        print(f"Image saved to: {save_path}")
+                        print(f"Dữ liệu hình ảnh từ database được lưu thành: {save_path}")
     except Exception as e:
-        print(f"Error fetching image data from {table_name}: {e}")
+        print(f"Lỗi chuyển đổi hình ảnh từ bảng {table_name}: {e}")
 
 # ====  ( finish chạy chương trình )  ====
 def main():
@@ -1038,8 +1040,7 @@ def main():
             crawl_hoa_don_ban_ra(driver)
             extract_table_ban_ra_to_csv(driver, output_file_ra)
             extract_img_hoa_don_ban_ra(driver)
-            fetch_image_data('mua_vao')
-            fetch_image_data('ban_ra')
+            main_workflow()
       except Exception as e:
             print(f"An error occurred: {e}")
       # finally:
