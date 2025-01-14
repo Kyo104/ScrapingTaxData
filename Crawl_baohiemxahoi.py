@@ -16,6 +16,8 @@ from PIL import Image
 from io import BytesIO
 import base64
 import pdfplumber
+from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 
 
 
@@ -27,7 +29,7 @@ print('hello baohiemxahoi')
 def initialize_driver():
       """Khởi tạo trình duyệt Chrome."""
       chrome_options = Options()
-      chrome_options.add_argument("--headless=new") # for Chrome >= 109
+      # chrome_options.add_argument("--headless=new") # for Chrome >= 109
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
       chrome_options.add_argument("--disable-dev-shm-usage")  # Vô hiệu hóa dev-shm usage
@@ -502,14 +504,14 @@ def crawl(driver):
       print('- Finish click các tháng cần tra cứu')
       time.sleep(3)
       
-      # nhấn vào tháng 4 để tra cứu
-      du_lieu_button = driver.find_element(By.ID, 'mat-option-6') 
-      du_lieu_button.click()
-      print('- Finish click các tháng Bảy')
-      time.sleep(3)
+      # # nhấn vào tháng 4 để tra cứu
+      # du_lieu_button = driver.find_element(By.ID, 'mat-option-6') 
+      # du_lieu_button.click()
+      # print('- Finish click các tháng Bảy')
+      # time.sleep(3)
       
       # Gọi đến hàm chon_thang cần crawl data về 
-      # chon_thang(driver)
+      chon_thang(driver) # Nhập tháng cần lấy data
 
       # nhấn vào nút Tra cứu 
       du_lieu_button = driver.find_element(By.CLASS_NAME, 'mat-raised-button')
@@ -531,7 +533,39 @@ def crawl(driver):
             print("[ERROR] Không tải được file PDF, không thể trích xuất dữ liệu.")
       
       
-      
+
+ # Hàm tạo và kết nối đến database PostgreSQL
+def create_and_connect_to_database(db_name, user, password, host='localhost', port='5432'):
+    """Tạo một database mới nếu chưa tồn tại và kết nối đến nó."""
+    # Kết nối đến PostgreSQL
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}', isolation_level='AUTOCOMMIT')
+
+    # Tạo database nếu chưa tồn tại
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT 1 FROM pg_catalog.pg_database WHERE datname = :db_name"), {"db_name": db_name})
+        exists = result.fetchone()
+        if not exists:
+            conn.execute(text(f"CREATE DATABASE {db_name}"))
+            print(f"Database '{db_name}' đã được tạo.")
+        else:
+            print(f"Database '{db_name}' đã tồn tại.")
+
+    # Kết nối đến database vừa tạo
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db_name}')
+    print(f"Kết nối thành công đến database: {db_name}")
+    return engine     
+    
+def load_csv_to_database(csv_file_path, engine):
+    try:
+        # Đọc file CSV vào DataFrame
+        df = pd.read_csv(csv_file_path, encoding='utf-8-sig')  # Sử dụng encoding phù hợp
+        
+        # Lưu DataFrame vào bảng trong database
+        df.to_sql('extracted_data', engine, if_exists='append', index=False)  # Thay thế bảng nếu đã tồn tại
+        print(f"[INFO] Dữ liệu đã được lưu vào bảng 'extracted_data' trong database.")
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi lưu dữ liệu vào database: {e}")
+
     
       
 def main():
@@ -546,6 +580,13 @@ def main():
       password =  "@ATDT2024"                                                                                                 
       
       captcha_image_path = "captcha_image.png"
+
+      # Thông tin PostgreSQL
+      pg_user = "postgres"  # Tên người dùng PostgreSQL
+      pg_password = "123456"  # Mật khẩu PostgreSQL
+      db_name = 'data_bao_hiem_xa_hoi'  # Tên database
+
+      save_path = "Mau_C12_TS.pdf"
       
       try:
             login_to_baohiemxahoi(driver, username, password)
@@ -558,6 +599,17 @@ def main():
             submit_form(driver, username, password, captcha_image_path)
             
             crawl(driver)
+
+            # Kết nối tới database PostgreSQL
+            print("[INFO] Đang kết nối tới database PostgreSQL...")
+            engine = create_and_connect_to_database(db_name, pg_user, pg_password)
+
+            # Đường dẫn tới file CSV
+            output_csv_path = "extracted_data.csv"  # Đường dẫn lưu file CSV
+            extract_specific_rows(save_path, output_csv_path)
+
+            # Gọi hàm để lưu dữ liệu từ CSV vào database
+            load_csv_to_database(output_csv_path, engine)
             
       except Exception as e:
             print(f"An error occurred: {e}")
