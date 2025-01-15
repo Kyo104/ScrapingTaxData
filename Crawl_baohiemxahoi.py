@@ -1,3 +1,4 @@
+import glob
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
@@ -16,7 +17,7 @@ from PIL import Image
 from io import BytesIO
 import base64
 import pdfplumber
-from sqlalchemy import create_engine
+from sqlalchemy import Numeric, create_engine
 from sqlalchemy.sql import text
 
 
@@ -29,7 +30,7 @@ print('hello baohiemxahoi')
 def initialize_driver():
       """Khởi tạo trình duyệt Chrome."""
       chrome_options = Options()
-      # chrome_options.add_argument("--headless=new") # for Chrome >= 109
+      chrome_options.add_argument("--headless=new") # for Chrome >= 109
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
       chrome_options.add_argument("--disable-dev-shm-usage")  # Vô hiệu hóa dev-shm usage
@@ -57,14 +58,12 @@ def login_to_baohiemxahoi(driver, username, password):
       driver.get(url)
       print('- Finish initializing a driver')
       time.sleep(5)
-      driver.save_screenshot('screenshot1.png')
 
       # Nhấn nút Đăng nhập
       login_button = driver.find_element(By.XPATH, "//span[contains(text(), ' Đăng nhập ')]")                                   
       login_button.click()
       time.sleep(3)
       print('- Finish Task 1: Login to baohiemxahoi')
-      driver.save_screenshot('screenshot2.png')
 
       
       
@@ -73,7 +72,6 @@ def login_to_baohiemxahoi(driver, username, password):
       to_chuc_button.click()
       time.sleep(3)
       print('- Finish Task 1: click to to_chuc')
-      driver.save_screenshot('screenshot3.png')
 
 
       # Nhập tên đăng nhập
@@ -81,7 +79,6 @@ def login_to_baohiemxahoi(driver, username, password):
       username_field.send_keys(username)
       print('- Finish keying in username_field')
       time.sleep(3)
-      driver.save_screenshot('screenshot4.png')
 
 
       # Nhập mật khẩu
@@ -98,7 +95,6 @@ def login_to_baohiemxahoi(driver, username, password):
       print(f"[DEBUG] Password entered: {entered_password}")
       print('- Finish keying in password_field')
       time.sleep(3)
-      driver.save_screenshot('screenshot5.png')
      
       
       
@@ -132,7 +128,7 @@ def save_captcha_image(driver):
       except Exception as e:
             print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
       
-API_KEY = "Thay API Key Vào đây"  # Thay bằng API Key của bạn từ autocaptcha
+API_KEY = "bb2075d8d57042848576bd3b98b4e17a"  # Thay bằng API Key của bạn từ autocaptcha
 
 # Gửi ảnh lên autocaptcha để giải mã
 def solve_captcha(image_base64):
@@ -190,50 +186,49 @@ def solve_captcha_from_file(file_path):
             return None
 
 
-# # 1.2 Nhập mã CAPTCHA tự động
-# def enter_verification_code(driver, captcha_image_path):
-#     """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
-#     try:
-#         # Giải mã CAPTCHA chỉ một lần
-#         captcha_code = solve_captcha_from_file(captcha_image_path)
-#         if not captcha_code:
-#             print("[ERROR] Không thể giải mã CAPTCHA.")
-#             return False
+# 1.2 Nhập mã CAPTCHA tự động
+def enter_verification_code(driver, captcha_image_path):
+    """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
+    try:
+        # Giải mã CAPTCHA chỉ một lần
+        captcha_code = solve_captcha_from_file(captcha_image_path)
+        if not captcha_code:
+            print("[ERROR] Không thể giải mã CAPTCHA.")
+            return False
 
-#         # Tìm trường nhập CAPTCHA
-#         verification_code_field = driver.find_element(By.XPATH, '//input[@placeholder="Nhập mã kiểm tra"]')
+        # Tìm trường nhập CAPTCHA
+        verification_code_field = driver.find_element(By.XPATH, '//input[@placeholder="Nhập mã kiểm tra"]')
 
-#         # Nhập mã CAPTCHA vào trường
-#         verification_code_field.clear()
-#         verification_code_field.send_keys(captcha_code)
-#         time.sleep(2)
+        # Nhập mã CAPTCHA vào trường
+        verification_code_field.clear()
+        verification_code_field.send_keys(captcha_code)
+        time.sleep(2)
 
-#         # Log giá trị sau khi nhập để kiểm tra
-#         captcha_value = verification_code_field.get_attribute('value')
-#         print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
+        # Log giá trị sau khi nhập để kiểm tra
+        captcha_value = verification_code_field.get_attribute('value')
+        print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
 
-#         return True
-#     except Exception as e:
-#         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
-#         return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+        return False
 
 
 
-# 1.2 Nhập mã captcha thủ công
-def enter_verification_code(driver):
-      """Nhập mã xác nhận."""
-      # Yêu cầu người dùng nhập mã xác nhận
-      code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
-      # Tìm và nhập Mã xác nhận
-      verification_code_field = driver.find_element(By.XPATH, '//input[@placeholder="Nhập mã kiểm tra"]')
-      verification_code_field.clear()
-      verification_code_field.send_keys(code)
-      print('- Finish keying in verification code')
-      time.sleep(2)
-      # Log giá trị sau khi nhập
-      captcha_value = verification_code_field.get_attribute('value')
-      print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
-      driver.save_screenshot('screenshot6.png')
+# # 1.2 Nhập mã captcha thủ công
+# def enter_verification_code(driver):
+#       """Nhập mã xác nhận."""
+#       # Yêu cầu người dùng nhập mã xác nhận
+#       code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
+#       # Tìm và nhập Mã xác nhận
+#       verification_code_field = driver.find_element(By.XPATH, '//input[@placeholder="Nhập mã kiểm tra"]')
+#       verification_code_field.clear()
+#       verification_code_field.send_keys(code)
+#       print('- Finish keying in verification code')
+#       time.sleep(2)
+#       # Log giá trị sau khi nhập
+#       captcha_value = verification_code_field.get_attribute('value')
+#       print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
 
       
     
@@ -245,7 +240,6 @@ def retry_input(driver, username, password):
       to_chuc_button.click()
       time.sleep(5)
       print('- Finish Task 2: click to to_chuc')
-      driver.save_screenshot('screenshot8.png')
       
 
       # Nhập tên đăng nhập ma so thue
@@ -254,7 +248,6 @@ def retry_input(driver, username, password):
       username_field.send_keys(username)
       print('- Finish keying in username_field')
       time.sleep(3)
-      driver.save_screenshot('screenshot9.png')
       
       
       
@@ -272,7 +265,6 @@ def retry_input(driver, username, password):
       print(f"[DEBUG] Password entered: {entered_password}")
       print('- Finish keying in password_field')
       time.sleep(3)
-      driver.save_screenshot('screenshot10.png')
       
       
       
@@ -296,7 +288,6 @@ def submit_form(driver, username, password, captcha_image_path):
 
                   # Xây dựng XPath cho nút đăng nhập tùy thuộc vào số lần thử
                   submit_button_xpath = f'//*[@id="mat-dialog-{attempt-1}"]/app-dialog-login/form/div/div[2]/button[2]/span'
-                  driver.save_screenshot('screenshot7.png')
 
                   
                   
@@ -326,8 +317,8 @@ def submit_form(driver, username, password, captcha_image_path):
 
                         # Lưu và giải mã CAPTCHA mới
                         save_captcha_image(driver)
-                        enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
-                        # enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
+                        # enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
+                        enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
       except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
 
@@ -555,16 +546,33 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
     print(f"Kết nối thành công đến database: {db_name}")
     return engine     
     
-def load_csv_to_database(csv_file_path, engine):
+def load_csv_to_database(engine):
     try:
+        # Lấy đường dẫn file CSV mới nhất
+        list_of_files = glob.glob('*.csv')  # Lấy tất cả các file CSV trong thư mục hiện tại
+        latest_csv_file = max(list_of_files, key=os.path.getctime)  # Lấy file CSV mới nhất
+
         # Đọc file CSV vào DataFrame
-        df = pd.read_csv(csv_file_path, encoding='utf-8-sig')  # Sử dụng encoding phù hợp
+        df = pd.read_csv(latest_csv_file, encoding='utf-8-sig')  # Sử dụng encoding phù hợp
+        
+        # Thay thế các giá trị null bằng chuỗi rỗng
+        df = df.fillna('')
+
+        # Định nghĩa kiểu dữ liệu cho các cột khi lưu vào database
+        dtype = {
+            'Kỳ trước mang sang': Numeric,  
+            'Phát sinh trong kỳ': Numeric,
+            'Số tiền đã nộp trong kỳ': Numeric,
+            'Phân bổ tiền đóng': Numeric,
+            'Chuyển kỳ sau': Numeric
+        }
         
         # Lưu DataFrame vào bảng trong database
-        df.to_sql('extracted_data', engine, if_exists='append', index=False)  # Thay thế bảng nếu đã tồn tại
-        print(f"[INFO] Dữ liệu đã được lưu vào bảng 'extracted_data' trong database.")
+        df.to_sql('BHXH', engine, if_exists='append', index=False)  # Thay thế bảng nếu đã tồn tại
+        print(f"[INFO] Dữ liệu đã được lưu vào bảng 'BHXH' trong database.")
     except Exception as e:
         print(f"[ERROR] Lỗi khi lưu dữ liệu vào database: {e}")
+
 
     
       
@@ -593,8 +601,8 @@ def main():
             
             save_captcha_image(driver)
             
-            enter_verification_code(driver) #thủ công
-            # enter_verification_code(driver, captcha_image_path) # tự động
+            # enter_verification_code(driver) #thủ công
+            enter_verification_code(driver, captcha_image_path) # tự động
             
             submit_form(driver, username, password, captcha_image_path)
             
@@ -604,12 +612,13 @@ def main():
             print("[INFO] Đang kết nối tới database PostgreSQL...")
             engine = create_and_connect_to_database(db_name, pg_user, pg_password)
 
-            # Đường dẫn tới file CSV
-            output_csv_path = "extracted_data.csv"  # Đường dẫn lưu file CSV
-            extract_specific_rows(save_path, output_csv_path)
+
+            # Lấy đường dẫn file CSV mới nhất
+            list_of_files = glob.glob('*.csv')  # Lấy tất cả các file CSV trong thư mục hiện tại
+            latest_csv_file = max(list_of_files, key=os.path.getctime)  # Lấy file CSV mới nhất
 
             # Gọi hàm để lưu dữ liệu từ CSV vào database
-            load_csv_to_database(output_csv_path, engine)
+            load_csv_to_database(engine)
             
       except Exception as e:
             print(f"An error occurred: {e}")
