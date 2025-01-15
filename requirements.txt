@@ -1,0 +1,10 @@
+selenium
+pandas
+openpyxl
+numpy
+requests
+Pillow
+pdfplumber
+
+
+
