@@ -20,11 +20,10 @@ import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime
 from pathlib import Path
+from selenium.webdriver.chrome.service import Service
 
 
 print('hello hoadondientu')
-
-
 
 # task 1 Đăng nhập vào website https://hoadondientu.gdt.gov.vn/
 def initialize_driver(use_window_size=True):
@@ -45,7 +44,9 @@ def initialize_driver(use_window_size=True):
       
       chrome_options.add_argument("--disable-blink-features=AutomationControlled")
       
+      # driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)  # chạy trên docker
       driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)
+      
       
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
       time.sleep(2)
@@ -126,7 +127,7 @@ def crawl_img(driver):
             print(f"Đã xảy ra lỗi: {e}")
 
 
-API_KEY = "4ee709e730f4bf34942708b743e5f9df"  # Thay bằng API Key của bạn từ AntiCaptcha
+API_KEY = "448385eb92cfd1d826425b91f5e79c5e"  # Thay bằng API Key của bạn từ AntiCaptcha
 
 # Hàm gửi ảnh đến AntiCaptcha
 def solve_captcha(image_base64):
@@ -300,7 +301,7 @@ def submit_form(driver, captcha_image_path):
 def crawl(driver):
       # Nhấn nút tra cứu 
       tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span')
-      tra_cuu_button.click()              
+      tra_cuu_button.click()                          
       print('- Finish click tra cứu')
       time.sleep(3)
       
