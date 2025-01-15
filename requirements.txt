@@ -1,7 +1,8 @@
-selenium==4.18.1
-pandas==2.2.1
-beautifulsoup4==4.12.3
-openpyxl==3.1.2
-Pillow==10.2.0
-requests==2.31.0
-python-dotenv==1.0.1
+beautifulsoup4
+glob2
+openpyxl
+pandas
+pillow
+requests
+selenium
+sqlalchemy
