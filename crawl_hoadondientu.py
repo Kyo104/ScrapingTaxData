@@ -22,7 +22,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime
 from pathlib import Path
-from psycopg2 import sql #Cái này Phúc mới thêm
+from psycopg2 import sql 
 
 # =================== BIẾN MÔI TRƯỜNG =================== 
 # Mục thông tin đăng nhập Hóa đơn điện tử
@@ -71,7 +71,7 @@ def initialize_driver():
       chrome_options = Options()
       chrome_options.add_argument("--ignore-certificate-errors")
       chrome_options.add_argument("--disable-extensions")
-      # chrome_options.add_argument("--headless=new") # for Chrome >= 109
+      chrome_options.add_argument("--headless=new") # for Chrome >= 109
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
       chrome_options.add_argument("--disable-dev-shm-usage") 
@@ -1065,7 +1065,7 @@ def fetch_image_data(table_name):
     except Exception as e:
         print(f"Lỗi chuyển đổi hình ảnh từ bảng {table_name}: {e}")
 
-def ensure_database_exists(args): #Cái này Phúc mới thêm
+def ensure_database_exists(args): 
     try:
         # Kết nối đến database tên "postgres" mặc định để kiểm tra kết nối
         connection = psycopg2.connect(
