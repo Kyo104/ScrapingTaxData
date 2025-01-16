@@ -35,6 +35,8 @@ If you would like to contribute to the project, please create a pull request and
 
 ## Authors
 - **Trần Ngọc Phước**
-
+- **Nguyễn Tiến Phúc**
+- **Đỗ Lý Anh Kiêt**
+- **Đỗ Hoài Thanh Quyên**
 ## License
 Thank you for your interest and use of our project! 🔥 🔥 🔥 
