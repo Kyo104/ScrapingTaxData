@@ -19,21 +19,49 @@ import base64
 import pdfplumber
 from sqlalchemy import Numeric, create_engine
 from sqlalchemy.sql import text
+import argparse
 
+# =================== BIẾN MÔI TRƯỜNG ===================
+# Mục thông tin đăng nhập BHXH
+BHXH_USERNAME = "0101850613" # Tùy biến
+BHXH_PASSWORD = "@ATDT2024" # Tùy biến
 
+# API key cho dịch vụ giải captcha
+API_KEY = "bb2075d8d57042848576bd3b98b4e17a"
+
+# Mục thông tin kết nối database
+DB_USER = "postgres" # Mặc định
+DB_PASSWORD = " " # Tùy biến
+DB_NAME = "data_bao_hiem_xa_hoi"
+DB_HOST = "localhost" # Mặc định
+DB_PORT = "5432" # Mặc định
+# ==============================================================================
 
 print(pd.__version__, np.__version__)
 print('hello baohiemxahoi')
 
+def parse_arguments():
+    """Parse command line arguments with environment variables as defaults."""
+    parser = argparse.ArgumentParser(description='BHXH Data Crawler')
+    parser.add_argument('--username', default=BHXH_USERNAME, help='Username for BHXH portal')
+    parser.add_argument('--password', default=BHXH_PASSWORD, help='Password for BHXH portal')
+    parser.add_argument('--api-key', default=API_KEY, help='API key for autocaptcha service')
+    parser.add_argument('--db-user', default=DB_USER, help='PostgreSQL username')
+    parser.add_argument('--db-password', default=DB_PASSWORD, help='PostgreSQL password')
+    parser.add_argument('--db-name', default=DB_NAME, help='Database name')
+    parser.add_argument('--db-host', default=DB_HOST, help='Database host')
+    parser.add_argument('--db-port', default=DB_PORT, help='Database port')
+    
+    return parser.parse_args()
 
-# task 1 Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
+# Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
 def initialize_driver():
       """Khởi tạo trình duyệt Chrome."""
       chrome_options = Options()
       chrome_options.add_argument("--headless=new") # for Chrome >= 109
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
-      chrome_options.add_argument("--disable-dev-shm-usage")  # Vô hiệu hóa dev-shm usage
+      chrome_options.add_argument("--disable-dev-shm-usage") 
       chrome_options.add_argument("--remote-debugging-port=9222")  # Cấu hình cổng cho DevTools
       chrome_options.add_argument("--disable-software-rasterizer")  # Tắt phần mềm rasterizer (để tránh lỗi bộ nhớ thấp)
       chrome_options.add_argument("--force-device-scale-factor=1")  # Điều chỉnh tỷ lệ hiển thị của thiết bị
@@ -41,17 +69,12 @@ def initialize_driver():
       chrome_options.add_argument("--disable-extensions")  # Tắt các tiện ích mở rộng
       chrome_options.add_argument("--enable-javascript")  # Bật JavaScript
 
-      
-      
       driver = webdriver.Chrome(options=chrome_options)
-      
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
       time.sleep(5)
       return driver
-      
 
-
-# 1.1 Nhập username và password vào trang web 'baohiemxahoi'
+# 1. Nhập username và password vào trang web 'baohiemxahoi'
 def login_to_baohiemxahoi(driver, username, password):
       """Đăng nhập vào trang web 'baohiemxahoi'."""
       url = 'https://dichvucong.baohiemxahoi.gov.vn/#/index'
@@ -64,8 +87,6 @@ def login_to_baohiemxahoi(driver, username, password):
       login_button.click()
       time.sleep(3)
       print('- Finish Task 1: Login to baohiemxahoi')
-
-      
       
       # Nhấn nút Tổ chức
       to_chuc_button = driver.find_element(By.XPATH, "//span[contains(text(), 'Tổ chức')]")
@@ -73,13 +94,11 @@ def login_to_baohiemxahoi(driver, username, password):
       time.sleep(3)
       print('- Finish Task 1: click to to_chuc')
 
-
       # Nhập tên đăng nhập
       username_field = driver.find_element(By.XPATH, '//input[@placeholder="Mã số thuế"]')
       username_field.send_keys(username)
       print('- Finish keying in username_field')
       time.sleep(3)
-
 
       # Nhập mật khẩu
       password_field = WebDriverWait(driver, 10).until(
@@ -88,7 +107,6 @@ def login_to_baohiemxahoi(driver, username, password):
       driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
       driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", password_field)
       driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", password_field)
-
       
       # Kiểm tra giá trị sau khi nhập
       entered_password = password_field.get_attribute('value')
@@ -96,10 +114,7 @@ def login_to_baohiemxahoi(driver, username, password):
       print('- Finish keying in password_field')
       time.sleep(3)
      
-      
-      
-
-# Tải ảnh CAPTCHA về máy
+# 1.1 Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
       """Tải ảnh CAPTCHA về máy."""
       try:
@@ -128,9 +143,7 @@ def save_captcha_image(driver):
       except Exception as e:
             print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
       
-API_KEY = "bb2075d8d57042848576bd3b98b4e17a"  # Thay bằng API Key của bạn từ autocaptcha
-
-# Gửi ảnh lên autocaptcha để giải mã
+# 1.2 Gửi ảnh lên autocaptcha để giải mã
 def solve_captcha(image_base64):
       """Gửi ảnh base64 lên autocaptcha và nhận mã CAPTCHA."""
       url = "https://autocaptcha.pro/api/captcha"
@@ -186,7 +199,7 @@ def solve_captcha_from_file(file_path):
             return None
 
 
-# 1.2 Nhập mã CAPTCHA tự động
+# 1.3 Nhập mã CAPTCHA tự động
 def enter_verification_code(driver, captcha_image_path):
     """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
     try:
@@ -213,27 +226,7 @@ def enter_verification_code(driver, captcha_image_path):
         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
         return False
 
-
-
-# # 1.2 Nhập mã captcha thủ công
-# def enter_verification_code(driver):
-#       """Nhập mã xác nhận."""
-#       # Yêu cầu người dùng nhập mã xác nhận
-#       code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
-#       # Tìm và nhập Mã xác nhận
-#       verification_code_field = driver.find_element(By.XPATH, '//input[@placeholder="Nhập mã kiểm tra"]')
-#       verification_code_field.clear()
-#       verification_code_field.send_keys(code)
-#       print('- Finish keying in verification code')
-#       time.sleep(2)
-#       # Log giá trị sau khi nhập
-#       captcha_value = verification_code_field.get_attribute('value')
-#       print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
-
-      
-    
-    
-# Hàm nhập lại các trường thông tin khi mã captcha giải sai
+# Nhập lại các trường thông tin khi mã captcha giải sai
 def retry_input(driver, username, password):
     # Nhấn nút Tổ chức
       to_chuc_button = driver.find_element(By.XPATH, "//span[contains(text(), 'Tổ chức')]")
@@ -241,7 +234,6 @@ def retry_input(driver, username, password):
       time.sleep(5)
       print('- Finish Task 2: click to to_chuc')
       
-
       # Nhập tên đăng nhập ma so thue
       username_field = driver.find_element(By.XPATH, '//input[@placeholder="Mã số thuế"]')
       username_field.clear()
@@ -249,9 +241,7 @@ def retry_input(driver, username, password):
       print('- Finish keying in username_field')
       time.sleep(3)
       
-      
-      
-      # # Nhập mật khẩu
+      # Nhập mật khẩu
       password_field = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Mật khẩu"]'))
       )
@@ -266,18 +256,7 @@ def retry_input(driver, username, password):
       print('- Finish keying in password_field')
       time.sleep(3)
       
-      
-      
-      
-      
-      
-
-      
-      
-      
-      
-         
-# 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web nếu login failed thì login lại
+# 1.4 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web nếu login failed thì login lại
 def submit_form(driver, username, password, captcha_image_path):
       """Nhấn nút để hoàn tất đăng nhập và kiểm tra kết quả đăng nhập."""
       try:
@@ -289,8 +268,6 @@ def submit_form(driver, username, password, captcha_image_path):
                   # Xây dựng XPath cho nút đăng nhập tùy thuộc vào số lần thử
                   submit_button_xpath = f'//*[@id="mat-dialog-{attempt-1}"]/app-dialog-login/form/div/div[2]/button[2]/span'
 
-                  
-                  
                   try:
                         submit_button = driver.find_element(By.XPATH, submit_button_xpath)
                         submit_button.click()
@@ -322,8 +299,6 @@ def submit_form(driver, username, password, captcha_image_path):
       except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
 
-
-
 def get_unique_filename(base_filename):
       """
       Tạo tên file duy nhất nếu file đã tồn tại, bằng cách thêm số thứ tự theo định dạng (1), (2),...
@@ -341,8 +316,6 @@ def get_unique_filename(base_filename):
 
       return new_filename
 
-            
-            
 def download_blob_pdf(driver, save_path):
       """
       Tải file PDF từ blob URL thông qua JavaScript và lưu vào đường dẫn chỉ định.
@@ -374,8 +347,6 @@ def download_blob_pdf(driver, save_path):
             print(f"[ERROR] Lỗi khi tải file từ blob URL: {e}")
             return None
             
-            
-
 def download_tab_data(driver, save_path):
       """
       Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
@@ -403,10 +374,7 @@ def download_tab_data(driver, save_path):
             print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
             return None
 
-
-
-
-def chon_thang(driver):
+def find_months(driver):
     while True:
         try:
             # Nhập số từ 1 đến 12
@@ -495,14 +463,8 @@ def crawl(driver):
       print('- Finish click các tháng cần tra cứu')
       time.sleep(3)
       
-      # # nhấn vào tháng 4 để tra cứu
-      # du_lieu_button = driver.find_element(By.ID, 'mat-option-6') 
-      # du_lieu_button.click()
-      # print('- Finish click các tháng Bảy')
-      # time.sleep(3)
-      
-      # Gọi đến hàm chon_thang cần crawl data về 
-      chon_thang(driver) # Nhập tháng cần lấy data
+      # Gọi đến hàm find_months cần crawl data về 
+      find_months(driver) # Nhập tháng cần lấy data
 
       # nhấn vào nút Tra cứu 
       du_lieu_button = driver.find_element(By.CLASS_NAME, 'mat-raised-button')
@@ -510,10 +472,8 @@ def crawl(driver):
       print('- Finish click nút Tra cứu')
       time.sleep(10)
       
-      
       # gọi đến hàm lưu dữ liệu về máy
-      save_path = "Mau_C12_TS.pdf"  # Đường dẫn lưu file
-      
+      save_path = "BangDuLieuTheoThang.pdf"
       
       unique_pdf_path = download_tab_data(driver, save_path)
       if unique_pdf_path:
@@ -522,8 +482,6 @@ def crawl(driver):
             extract_specific_rows(unique_pdf_path, output_csv_path)
       else:
             print("[ERROR] Không tải được file PDF, không thể trích xuất dữ liệu.")
-      
-      
 
  # Hàm tạo và kết nối đến database PostgreSQL
 def create_and_connect_to_database(db_name, user, password, host='localhost', port='5432'):
@@ -549,15 +507,12 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
 def load_csv_to_database(engine):
     try:
         # Lấy đường dẫn file CSV mới nhất
-        list_of_files = glob.glob('*.csv')  # Lấy tất cả các file CSV trong thư mục hiện tại
-        latest_csv_file = max(list_of_files, key=os.path.getctime)  # Lấy file CSV mới nhất
-
+        list_of_files = glob.glob('*.csv')  
+        latest_csv_file = max(list_of_files, key=os.path.getctime)  
         # Đọc file CSV vào DataFrame
-        df = pd.read_csv(latest_csv_file, encoding='utf-8-sig')  # Sử dụng encoding phù hợp
-        
+        df = pd.read_csv(latest_csv_file, encoding='utf-8-sig') 
         # Thay thế các giá trị null bằng chuỗi rỗng
         df = df.fillna('')
-
         # Định nghĩa kiểu dữ liệu cho các cột khi lưu vào database
         dtype = {
             'Kỳ trước mang sang': Numeric,  
@@ -574,57 +529,43 @@ def load_csv_to_database(engine):
         print(f"[ERROR] Lỗi khi lưu dữ liệu vào database: {e}")
 
 
-    
-      
 def main():
-      """Chạy tất cả các bước trong quy trình đăng nhập."""
-      driver = initialize_driver()
-      
-      # Thay thế username, password vào
-      # username = input("Nhập tên đăng nhập (username): ")                      #  0101850613
-      # password = input("Nhập mật khẩu (password): ")                          #  @ATDT2024
-      
-      username = "0101850613"                      
-      password =  "@ATDT2024"                                                                                                 
-      
-      captcha_image_path = "captcha_image.png"
-
-      # Thông tin PostgreSQL
-      pg_user = "postgres"  # Tên người dùng PostgreSQL
-      pg_password = "123456"  # Mật khẩu PostgreSQL
-      db_name = 'data_bao_hiem_xa_hoi'  # Tên database
-
-      save_path = "Mau_C12_TS.pdf"
-      
-      try:
-            login_to_baohiemxahoi(driver, username, password)
-            
-            save_captcha_image(driver)
-            
-            # enter_verification_code(driver) #thủ công
-            enter_verification_code(driver, captcha_image_path) # tự động
-            
-            submit_form(driver, username, password, captcha_image_path)
-            
-            crawl(driver)
-
-            # Kết nối tới database PostgreSQL
-            print("[INFO] Đang kết nối tới database PostgreSQL...")
-            engine = create_and_connect_to_database(db_name, pg_user, pg_password)
-
-
-            # Lấy đường dẫn file CSV mới nhất
-            list_of_files = glob.glob('*.csv')  # Lấy tất cả các file CSV trong thư mục hiện tại
-            latest_csv_file = max(list_of_files, key=os.path.getctime)  # Lấy file CSV mới nhất
-
-            # Gọi hàm để lưu dữ liệu từ CSV vào database
-            load_csv_to_database(engine)
-            
-      except Exception as e:
-            print(f"An error occurred: {e}")
-      #     finally:
-      #         driver.quit()  # Đóng trình duyệt sau khi hoàn thành
+    args = parse_arguments()
+    
+    captcha_image_path = "captcha_image.png"
+    save_path = "BangDuLieuTheoThang.pdf"
+    
+    try:
+        # Initialize driver
+        driver = initialize_driver()
+        
+        # Login process using parsed arguments
+        login_to_baohiemxahoi(driver, args.username, args.password)
+        save_captcha_image(driver)
+        enter_verification_code(driver, captcha_image_path)
+        submit_form(driver, args.username, args.password, captcha_image_path)
+        
+        # Crawl data
+        crawl(driver)
+        
+        # Database connection using parsed arguments
+        print("[INFO] Đang kết nối tới database PostgreSQL...")
+        engine = create_and_connect_to_database(
+            args.db_name,
+            args.db_user,
+            args.db_password,
+            args.db_host,
+            args.db_port
+        )
+        
+        # Load data to database
+        load_csv_to_database(engine)
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == '__main__':
-      main()
+    main()
       
