@@ -43,9 +43,9 @@ print('hello baohiemxahoi')
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='BHXH Data Crawler')
-    parser.add_argument('--username', default=BHXH_USERNAME, help='Username for BHXH portal')
-    parser.add_argument('--password', default=BHXH_PASSWORD, help='Password for BHXH portal')
-    parser.add_argument('--api-key', default=API_KEY, help='API key for autocaptcha service')
+    parser.add_argument('--username', default=BHXH_USERNAME, help='Tên đăng nhập cho trang web Bảo hiểm xã hội')
+    parser.add_argument('--password', default=BHXH_PASSWORD, help='Mật khẩu nhập cho trang web Bảo hiểm xã hội')
+    parser.add_argument('--api-key', default=API_KEY, help='API key từ trang web autocaptcha để giải captcha')
     parser.add_argument('--db-user', default=DB_USER, help='PostgreSQL username')
     parser.add_argument('--db-password', default=DB_PASSWORD, help='PostgreSQL password')
     parser.add_argument('--db-name', default=DB_NAME, help='Database name')
