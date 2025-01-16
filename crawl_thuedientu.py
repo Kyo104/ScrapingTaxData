@@ -20,7 +20,44 @@ from io import BytesIO
 import base64
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+import argparse
 
+# =================== BIẾN MÔI TRƯỜNG ===================
+# Mục thông tin đăng nhập Thuế Điện Tử
+THUEDIENTU_USERNAME = "0101652097-ql"  # Tùy biến
+THUEDIENTU_PASSWORD = "At2025$$$"  # Tùy biến
+
+# API key cho dịch vụ giải captcha
+API_KEY = "2fd46e197a886b8606fd140e3fe1f20b"  # Tùy biến
+
+# Mục thông tin kết nối database
+DB_USER = "postgres"  # Mặc định
+DB_PASSWORD = "123456"  # Tùy biến
+DB_NAME = "data_thue_dien_tu"
+DB_HOST = "localhost"  # Mặc định
+DB_PORT = "5432"  # Mặc định
+# ==============================================================================
+def parse_arguments():
+    """Parse command line arguments with environment variables as defaults."""
+    parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+    parser.add_argument('--username', default=THUEDIENTU_USERNAME,
+                       help='Tên đăng nhập cho trang web Thuế điện tử')
+    parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
+                       help='Mật khẩu nhập cho trang web Thuế điện tử')
+    parser.add_argument('--api-key', default=API_KEY,
+                       help='API key từ trang web autocaptcha để giải captcha')
+    parser.add_argument('--db-user', default=DB_USER,
+                       help='PostgreSQL username')
+    parser.add_argument('--db-password', default=DB_PASSWORD,
+                       help='PostgreSQL password')
+    parser.add_argument('--db-name', default=DB_NAME,
+                       help='Database name')
+    parser.add_argument('--db-host', default=DB_HOST,
+                       help='Database host')
+    parser.add_argument('--db-port', default=DB_PORT,
+                       help='Database port')
+    
+    return parser.parse_args()
 
 print('hello thuedientu')
 
@@ -28,6 +65,8 @@ print('hello thuedientu')
 def initialize_driver():
     """Khởi tạo trình duyệt Chrome."""
     chrome_options = Options()
+    chrome_options.add_argument("--ignore-certificate-errors")
+    chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--headless=new") # for Chrome >= 109
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--force-device-scale-factor=1")
@@ -58,6 +97,12 @@ def login_to_thuedientu(driver, username, password):
     login_button.click()
     time.sleep(3)
     print('- Finish Task 1: Login to thuedientu')
+    
+    # click vào Thue dien tu
+    btn_tk_thue = driver.find_element(By.XPATH, '//*[@id="icon-1"]')
+    btn_tk_thue.click()
+    time.sleep(3)
+    print('- Finish Task 1: Login to icon')
 
     # Nhập tên đăng nhập
     username_field = driver.find_element(By.ID, '_userName')
@@ -82,20 +127,11 @@ def login_to_thuedientu(driver, username, password):
 def save_captcha_image(driver):
     """Tải ảnh CAPTCHA về máy."""
     try:
-        # refresh_button = driver.find_element(By.CLASS_NAME, 'lam_moi_mxn')
-        # refresh_button.click()
-        # print("Refreshed CAPTCHA")
-
-        # Sau đó, chụp lại CAPTCHA mới
         captcha_element = driver.find_element(By.ID, 'safecode')
         captcha_element.screenshot("captcha_image.png")
         print("[INFO] CAPTCHA đã được lưu tại captcha_image.png")
     except Exception as e:
         print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
-
-
-API_KEY = "2fd46e197a886b8606fd140e3fe1f20b"  # Thay bằng API Key của bạn từ autocaptcha
-
 
 # Gửi ảnh lên autocaptcha để giải mã
 def solve_captcha(image_base64):
@@ -153,53 +189,48 @@ def solve_captcha_from_file(file_path):
         print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
         return None
 
-    
-      
-    
-# # 1.2 Nhập mã CAPTCHA tự động
-# def enter_verification_code(driver, captcha_image_path):
-#     """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
-#     try:
-#         # Giải mã CAPTCHA chỉ một lần
-#         captcha_code = solve_captcha_from_file(captcha_image_path)
-#         if not captcha_code:
-#             print("[ERROR] Không thể giải mã CAPTCHA.")
-#             return False
+# 1.2 Nhập mã CAPTCHA tự động
+def enter_verification_code(driver, captcha_image_path):
+    """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
+    try:
+        # Giải mã CAPTCHA chỉ một lần
+        captcha_code = solve_captcha_from_file(captcha_image_path)
+        if not captcha_code:
+            print("[ERROR] Không thể giải mã CAPTCHA.")
+            return False
 
-#         # Tìm trường nhập CAPTCHA
-#         verification_code_field = driver.find_element(By.ID, 'vcode')
+        # Tìm trường nhập CAPTCHA
+        verification_code_field = driver.find_element(By.ID, 'vcode')
 
-#         # Nhập mã CAPTCHA vào trường
-#         verification_code_field.clear()
-#         verification_code_field.send_keys(captcha_code)
-#         time.sleep(2)
+        # Nhập mã CAPTCHA vào trường
+        verification_code_field.clear()
+        verification_code_field.send_keys(captcha_code)
+        time.sleep(2)
 
-#         # Log giá trị sau khi nhập để kiểm tra
-#         captcha_value = verification_code_field.get_attribute('value')
-#         print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
+        # Log giá trị sau khi nhập để kiểm tra
+        captcha_value = verification_code_field.get_attribute('value')
+        print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
 
-#         return True
-#     except Exception as e:
-#         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
-#         return False
-# ---------------------------------------------------------------------------------------------------------------------------------------------
+        return True
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+        return False
+# -----------------------------------------------------------------------------
 
-# 1.2 Nhập mã captcha thủ công
-def enter_verification_code(driver):
-    """Nhập mã xác nhận."""
-    # Yêu cầu người dùng nhập mã xác nhận
-    code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
-    # Tìm và nhập Mã xác nhận
-    verification_code_field = driver.find_element(By.ID, 'vcode')
-    verification_code_field.send_keys(code)
-    print('- Finish keying in verification code')
-    time.sleep(2)
-    # Log giá trị sau khi nhập
-    captcha_value = verification_code_field.get_attribute('value')
-    print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
-
-# ---------------------------------------------------------------------------------------------------------------------------------------------
-
+# # 1.2 Nhập mã captcha thủ công
+# def enter_verification_code(driver):
+#     """Nhập mã xác nhận."""
+#     # Yêu cầu người dùng nhập mã xác nhận
+#     code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
+#     # Tìm và nhập Mã xác nhận
+#     verification_code_field = driver.find_element(By.ID, 'vcode')
+#     verification_code_field.send_keys(code)
+#     print('- Finish keying in verification code')
+#     time.sleep(2)
+#     # Log giá trị sau khi nhập
+#     captcha_value = verification_code_field.get_attribute('value')
+#     print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
+# -----------------------------------------------------------------------------
 
 def retry_user_pass_doituong(driver, username, password):
     # Nhập tên đăng nhập
@@ -273,9 +304,6 @@ def submit_form(driver, username, password, captcha_image_path):
             break
     except Exception as e:
         print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
-
-    
-    
     
 # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
 # ( Hàm Thêm stt sau mỗi file trùng tên )
@@ -454,8 +482,6 @@ def crawl(driver):
         df = pd.DataFrame()  # Trả về DataFrame rỗng nếu không tìm thấy bảng
 
     return df
-           
-        
 
 # 2.2 Lưu và xứ lý dữ liệu vào database PostgreSQL
 # Hàm tạo và kết nối đến database PostgreSQL
@@ -491,14 +517,22 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
 # Hàm đọc file Excel và tải dữ liệu lên PostgreSQL
 def upload_excel_to_postgres(db_config):
     try:
-        # Lấy file Excel mới nhất từ thư mục
-        list_of_files = glob.glob(f"./data_thue_dien_tu.xlsx")
+        # Tìm tất cả các file Excel với pattern data_thue_dien_tu*.xlsx
+        list_of_files = glob.glob("./data_thue_dien_tu*.xlsx")
         if not list_of_files:
             print("Không tìm thấy file Excel nào trong thư mục.")
             return
 
-        latest_file = max(list_of_files, key=os.path.getctime)  # Lấy file mới nhất
-        print(f"File Excel mới nhất: {latest_file}")
+        # Sắp xếp files theo thời gian tạo, lấy file mới nhất
+        latest_file = max(list_of_files, key=os.path.getctime)
+        
+        # Kiểm tra xem file có phải là phiên bản được đánh số không
+        base_name = "data_thue_dien_tu.xlsx"
+        if latest_file != f"./{base_name}":
+            # File có số trong ngoặc, ví dụ: data_thue_dien_tu (1).xlsx
+            print(f"Sử dụng file mới nhất: {latest_file}")
+        else:
+            print(f"Sử dụng file gốc: {latest_file}")
 
         # Kết nối tới PostgreSQL
         engine = create_engine(
@@ -506,35 +540,86 @@ def upload_excel_to_postgres(db_config):
         )
         connection = engine.connect()
 
-        # Đọc file Excel
+        # Đọc file Excel mới nhất
         data = pd.read_excel(latest_file)
 
         # Xử lý dữ liệu rỗng (thay None hoặc NaN bằng "")
         data = data.fillna("")
 
-        # Tải dữ liệu lên PostgreSQL vào bảng tạm (tạo nếu chưa tồn tại)
-        data.to_sql('tax_data', con=engine, if_exists='replace', index=False)
-        print("Đã tải dữ liệu lên bảng tax_data.")
+        # Tạo timestamp cho version control
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Tạo tên bảng với timestamp
+        table_name = f'tax_data_{timestamp}'
+
+        # Tải dữ liệu lên PostgreSQL vào bảng mới với timestamp
+        data.to_sql(table_name, con=engine, if_exists='replace', index=False)
+        print(f"Đã tải dữ liệu lên bảng {table_name}")
 
         # Thêm cột tax_data_id làm khóa chính (serial)
         with engine.begin() as conn:
-            conn.execute(text("""ALTER TABLE tax_data ADD COLUMN tax_data_id SERIAL PRIMARY KEY;"""))
-        print("Đã thêm cột tax_data_id làm khóa chính cho bảng tax_data.")
+            conn.execute(text(f"""ALTER TABLE {table_name} ADD COLUMN tax_data_id SERIAL PRIMARY KEY;"""))
+        print(f"Đã thêm cột tax_data_id làm khóa chính cho bảng {table_name}")
+
+        # Lưu thông tin về file nguồn vào bảng metadata
+        metadata_query = f"""
+        CREATE TABLE IF NOT EXISTS tax_data_metadata (
+            id SERIAL PRIMARY KEY,
+            table_name VARCHAR(100),
+            source_file VARCHAR(255),
+            upload_timestamp TIMESTAMP,
+            is_latest BOOLEAN
+        );
+        
+        -- Cập nhật tất cả các bản ghi cũ thành không phải latest
+        UPDATE tax_data_metadata SET is_latest = FALSE;
+        
+        -- Thêm bản ghi mới
+        INSERT INTO tax_data_metadata (table_name, source_file, upload_timestamp, is_latest)
+        VALUES ('{table_name}', '{os.path.basename(latest_file)}', CURRENT_TIMESTAMP, TRUE);
+        """
+        
+        with engine.begin() as conn:
+            conn.execute(text(metadata_query))
+        
+        print(f"Đã cập nhật metadata cho {table_name}")
 
     except Exception as e:
         print(f"Lỗi khi tải dữ liệu lên PostgreSQL: {e}")
-
+        raise e
 
 def process_and_create_tables(db_config):
     try:
+        # Tạo engine kết nối đến cơ sở dữ liệu
         engine = create_engine(
             f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
         )
-        tax_data = pd.read_sql("SELECT * FROM tax_data", con=engine)
+        
+        # Lấy tên bảng mới nhất từ metadata
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                SELECT table_name 
+                FROM tax_data_metadata 
+                WHERE is_latest = TRUE 
+                ORDER BY upload_timestamp DESC 
+                LIMIT 1
+            """))
+            latest_table = result.fetchone()
+            
+            if not latest_table:
+                raise Exception("Không tìm thấy bảng dữ liệu mới nhất trong metadata")
+                
+            source_table = latest_table[0]
+            print(f"Đang xử lý dữ liệu từ bảng: {source_table}")
+            
+            # Đọc dữ liệu từ bảng nguồn
+            tax_data = pd.read_sql(f"SELECT * FROM {source_table}", con=engine)
 
         # Duyệt lần 1: Lọc và tạo bảng phụ với mục A, B, C
         sections = ['A', 'B', 'C']
         for i, section in enumerate(sections):
+            # Xác định phạm vi dữ liệu cho từng mục
             start_index = tax_data[tax_data['STT'].str.startswith(f"{section}.")].index[0]
             if i < len(sections) - 1:
                 next_section = sections[i + 1]
@@ -542,23 +627,28 @@ def process_and_create_tables(db_config):
                 section_data = tax_data.iloc[start_index:end_index]
             else:
                 section_data = tax_data.iloc[start_index:]
-            section_table_name = f"tax_data_{section.lower()}"
+            
+            section_table_name = f"{source_table}_{section.lower()}"
+            
+            # Lưu dữ liệu của từng mục vào bảng phụ
             section_data.to_sql(section_table_name, con=engine, if_exists='replace', index=False)
             with engine.begin() as conn:
                 conn.execute(text(f"""
                     ALTER TABLE {section_table_name} ADD COLUMN {section_table_name}_id SERIAL PRIMARY KEY;
-                    ALTER TABLE {section_table_name} ADD CONSTRAINT fk_tax_data FOREIGN KEY (tax_data_id) REFERENCES tax_data (tax_data_id);
+                    ALTER TABLE {section_table_name} ADD CONSTRAINT fk_{source_table} FOREIGN KEY ({section_table_name}_id) REFERENCES {source_table} (tax_data_id);
                 """))
             print(f"Đã tạo bảng phụ {section_table_name} với {len(section_data)} hàng.")
 
         # Duyệt lần 2: Lọc và tạo bảng con từ từng bảng phụ
         for section in sections:
-            section_table_name = f"tax_data_{section.lower()}"
+            section_table_name = f"{source_table}_{section.lower()}"
             section_data = pd.read_sql(f"SELECT * FROM {section_table_name}", con=engine)
             subsections = section_data['STT'][section_data['STT'].str.match(r'^(I|II|III|IV|V|VI|VII|VIII|IX|X)\..*')].tolist()
+            
             if not subsections:
                 print(f"Bảng phụ {section_table_name} không có mục con, bỏ qua.")
                 continue
+            
             for j, subsection in enumerate(subsections):
                 start_index = section_data[section_data['STT'] == subsection].index[0]
                 if j < len(subsections) - 1:
@@ -566,82 +656,75 @@ def process_and_create_tables(db_config):
                     subsection_data = section_data.iloc[start_index:end_index]
                 else:
                     subsection_data = section_data.iloc[start_index:]
+                
                 subsection_table_name = f"{section_table_name}_{subsection.split('.')[0].lower()}"
+                
+                # Lưu dữ liệu của từng mục con vào bảng con
                 subsection_data.to_sql(subsection_table_name, con=engine, if_exists='replace', index=False)
                 with engine.begin() as conn:
                     conn.execute(text(f"""
                         ALTER TABLE {subsection_table_name} ADD COLUMN {subsection_table_name}_id SERIAL PRIMARY KEY;
                         ALTER TABLE {subsection_table_name} ADD CONSTRAINT fk_{section_table_name} FOREIGN KEY ({section_table_name}_id) REFERENCES {section_table_name} ({section_table_name}_id);
-                        ALTER TABLE {subsection_table_name} ADD CONSTRAINT fk_tax_data FOREIGN KEY (tax_data_id) REFERENCES tax_data (tax_data_id);
+                        ALTER TABLE {subsection_table_name} ADD CONSTRAINT fk_{source_table} FOREIGN KEY ({subsection_table_name}_id) REFERENCES {source_table} (tax_data_id);
                     """))
                 print(f"Đã tạo bảng con {subsection_table_name} với {len(subsection_data)} hàng.")
+        
+        print("Hoàn thành xử lý và tạo các bảng.")
+    
     except Exception as e:
         print(f"Lỗi khi xử lý và tạo bảng: {e}")
 
-
-
-    
 def main():
-    """Chạy tất cả các bước trong quy trình đăng nhập."""
-    driver = initialize_driver()
-
-    # Thay thế username, password vào
-    username = "0101652097-ql"
-    password = "At2025$$$"
+    """Main function to run the crawler with parsed arguments."""
+    # Parse command line arguments
+    args = parse_arguments()
     
-    captcha_image_path = "captcha_image.png"
-
-    # Định nghĩa cấu hình kết nối database
+    # Initialize database configuration
     db_config = {
-        'host': 'localhost',
-        'port': 5432,
-        'user': 'postgres',
-        'password': '123456',
-        'database': 'taxdata'
+        'host': args.db_host,
+        'port': args.db_port,
+        'user': args.db_user,
+        'password': args.db_password,
+        'database': args.db_name
     }
-
-    # Tạo và kết nối đến database
-    engine = create_and_connect_to_database(
-        db_name=db_config['database'],
-        user=db_config['user'],
-        password=db_config['password'],
-        host=db_config['host'],
-        port=db_config['port']
-    )
-
+    
+    # Initialize webdriver
+    driver = initialize_driver()
+    captcha_image_path = "captcha_image.png"
     
     try:
-        login_to_thuedientu(driver, username, password)
-        
+        # Login process
+        login_to_thuedientu(driver, args.username, args.password)
         save_captcha_image(driver)
+        enter_verification_code(driver)  # Manual captcha entry
+        submit_form(driver, args.username, args.password, captcha_image_path)
         
-        enter_verification_code(driver) # thủ công
-        # enter_verification_code(driver, captcha_image_path) # tự động
-        
-        
-        submit_form(driver, username, password, captcha_image_path)
+        # Data crawling and processing
         df = crawl(driver)
-        
-        
-        if engine:
-            # Lưu dữ liệu vào file Excel
-            file_path = 'data_thue_dien_tu.xlsx'  # Thay bằng tên file của bạn
-            unique_file_name = save_to_excel_with_style(df, file_path)   
-            # Gọi hàm điều chỉnh kích thước cột
-            adjust_column_width(unique_file_name)  
 
-            # Gọi hàm tải dữ liệu
+        # Create and connect to database
+        engine = create_and_connect_to_database(
+            db_name=db_config['database'],
+            user=db_config['user'],
+            password=db_config['password'],
+            host=db_config['host'],
+            port=db_config['port']
+        )
+        
+        if engine and not df.empty:
+            # Save to Excel
+            file_path = 'data_thue_dien_tu.xlsx'
+            unique_file_name = save_to_excel_with_style(df, file_path)
+            adjust_column_width(unique_file_name)
+            
+            # Upload to database
             upload_excel_to_postgres(db_config)
-
-            # Gọi hàm xử lý và tạo bảng
             process_and_create_tables(db_config)
             
-
-        
     except Exception as e:
         print(f"An error occurred: {e}")
-#     finally:
-#         driver.quit()  # Đóng trình duyệt sau khi hoàn thành
+    finally:
+        driver.quit()
 
 if __name__ == '__main__':
     main()
