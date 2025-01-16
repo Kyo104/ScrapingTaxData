@@ -1,7 +1,12 @@
 selenium
 pandas
-Pillow
-beautifulsoup4
+numpy
+openpyxl
 requests
+Pillow
+pdfplumber
+SQLAlchemy
 cairosvg
-psycopg2
+beautifulsoup4
+psycopg2-binary
+lxml
