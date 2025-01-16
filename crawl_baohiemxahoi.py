@@ -31,13 +31,11 @@ API_KEY = "bb2075d8d57042848576bd3b98b4e17a"
 
 # Mục thông tin kết nối database
 DB_USER = "postgres" # Mặc định
-DB_PASSWORD = " " # Tùy biến
+DB_PASSWORD = "123456" # Tùy biến
 DB_NAME = "data_bao_hiem_xa_hoi"
 DB_HOST = "localhost" # Mặc định
 DB_PORT = "5432" # Mặc định
 # ==============================================================================
-
-print(pd.__version__, np.__version__)
 print('hello baohiemxahoi')
 
 def parse_arguments():
