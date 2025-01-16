@@ -1,6 +1,8 @@
+import argparse
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
+import numpy as np
 from selenium import webdriver
 from selenium.common.exceptions import ElementNotInteractableException, TimeoutException
 from selenium.webdriver.common.by import By
@@ -20,39 +22,70 @@ import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime
 from pathlib import Path
-from selenium.webdriver.chrome.service import Service
+from psycopg2 import sql #Cái này Phúc mới thêm
 
+# =================== BIẾN MÔI TRƯỜNG =================== 
+# Mục thông tin đăng nhập Hóa đơn điện tử
+HOADON_USERNAME = "0101652097"  # Tùy biến
+HOADON_PASSWORD = "At2025@@@"  # Tùy biến
 
+# API key cho dịch vụ giải captcha
+API_KEY = "e61169c7b2c94188e7e1234f558f69a1"
+
+# Mục thông tin kết nối database
+DB_USER = "postgres"  # Mặc định
+DB_PASSWORD = "123456"  # Tùy biến
+DB_NAME = "data_hoa_don_dien_tu"
+DB_HOST = "localhost"  # Mặc định
+DB_PORT = "5432"  # Mặc định
+
+print(f'Pandas version: {pd.__version__}')
 print('hello hoadondientu')
+# ==============================================================================
+def parse_arguments():
+    """Parse command line arguments with environment variables as defaults."""
+    parser = argparse.ArgumentParser(description='Hóa đơn điện tử Data Crawler')
+    
+    parser.add_argument('--username', default=HOADON_USERNAME,
+                        help='Tên đăng nhập cho trang web Hóa đơn điện tử')
+    parser.add_argument('--password', default=HOADON_PASSWORD,
+                        help='Mật khẩu nhập cho trang web Hóa đơn điện tử')
+    parser.add_argument('--api-key', default=API_KEY,
+                        help='API key từ trang web autocaptcha để giải captcha')
+    parser.add_argument('--db-user', default=DB_USER,
+                        help='PostgreSQL username')
+    parser.add_argument('--db-password', default=DB_PASSWORD,
+                        help='PostgreSQL password')
+    parser.add_argument('--db-name', default=DB_NAME,
+                        help='Database name')
+    parser.add_argument('--db-host', default=DB_HOST,
+                        help='Database host')
+    parser.add_argument('--db-port', default=DB_PORT,
+                        help='Database port')
+    
+    return parser.parse_args()
 
-# task 1 Đăng nhập vào website https://hoadondientu.gdt.gov.vn/
-def initialize_driver(use_window_size=True):
+# Đăng nhập vào website https://hoadondientu.gdt.gov.vn/
+def initialize_driver():
       """Khởi tạo trình duyệt Chrome."""
       chrome_options = Options()
-      chrome_options.add_argument("--headless=new") # Chạy Chrome ở chế độ headless
+      chrome_options.add_argument("--ignore-certificate-errors")
+      chrome_options.add_argument("--disable-extensions")
+      # chrome_options.add_argument("--headless=new") # for Chrome >= 109
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
-      chrome_options.add_argument("--disable-dev-shm-usage")  # Vô hiệu hóa dev-shm usage
+      chrome_options.add_argument("--disable-dev-shm-usage") 
       chrome_options.add_argument("--remote-debugging-port=9222")  # Cấu hình cổng cho DevTools
       chrome_options.add_argument("--disable-software-rasterizer")  # Tắt phần mềm rasterizer (để tránh lỗi bộ nhớ thấp)
-      chrome_options.add_argument("--window-size=1920x1080")  # Đảm bảo kích thước cửa sổ tối ưu cho headless
       chrome_options.add_argument("--force-device-scale-factor=1")  # Điều chỉnh tỷ lệ hiển thị của thiết bị
-      
-      # Thêm --window-size chỉ khi cần thiết
-      if use_window_size == False:
-            chrome_options.add_argument("--window-size=1920,1080")
-      
-      chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-      
-      # driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)  # chạy trên docker
-      driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)
-      
-      
+      chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Ẩn việc sử dụng WebDriver
+      chrome_options.add_argument("--disable-extensions")  # Tắt các tiện ích mở rộng
+      chrome_options.add_argument("--enable-javascript")  # Bật JavaScript
+
+      driver = webdriver.Chrome(options=chrome_options)
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
-      time.sleep(2)
-      return driver 
-
-
+      time.sleep(5)
+      return driver
 
 # 1.1 Nhập username và password vào trang web 'hoadondientu'
 def login_to_thuedientu(driver, username, password):
@@ -126,9 +159,6 @@ def crawl_img(driver):
       except Exception as e:
             print(f"Đã xảy ra lỗi: {e}")
 
-
-API_KEY = "448385eb92cfd1d826425b91f5e79c5e"  # Thay bằng API Key của bạn từ AntiCaptcha
-
 # Hàm gửi ảnh đến AntiCaptcha
 def solve_captcha(image_base64):
     url = "https://anticaptcha.top/api/captcha"
@@ -196,9 +226,6 @@ def solve_captcha_from_file(file_path):
         print(f"An error occurred: {str(e)}")
         return None
 
-
-
-
 # 1.2 Nhập mã Captcha (tự động)
 def enter_verification_code(driver, captcha_image_path):
       try:
@@ -232,12 +259,6 @@ def enter_verification_code(driver, captcha_image_path):
       except Exception as e:
             print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
             return False
-
-
-
-
-      
-
 
 # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
 def submit_form(driver, captcha_image_path):
@@ -295,9 +316,7 @@ def submit_form(driver, captcha_image_path):
       except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
 
-
-
-# Task 2.1 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha lần đầu thành công
+# 2.1 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha lần đầu thành công
 def crawl(driver):
       # Nhấn nút tra cứu 
       tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span')
@@ -311,8 +330,7 @@ def crawl(driver):
       print('- Finish click tra cứu hóa đơn')
       time.sleep(3)
       
-      
-# Task 2.2 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha các lần sau thành công
+# 2.2 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha các lần sau thành công
 def crawls(driver):
       # Nhấn nút tra cứu 
       tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span')
@@ -326,10 +344,9 @@ def crawls(driver):
       print('- Finish click tra cứu hóa đơn')
       time.sleep(3)
 
-
-# Task 3 chọn vào tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
+# 3. chọn vào tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
 def crawl_hoa_don_mua_vao(driver):
-      # Chọn Tra cứu hóa đơn điện tử mua vào (đảm bảo đã click vào tab này trước)
+      # Chọn Tra cứu hóa đơn điện tử mua vào
       mua_vao_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[1]/div/div/div/div/div[1]/div[2]/span'))
       )
@@ -352,7 +369,7 @@ def crawl_hoa_don_mua_vao(driver):
             
             # user có thể tự chọn tháng muốn crawl dữ liệu (chọn tháng thủ công trong 6s)     
            
-            time.sleep(6)
+            time.sleep(15)
             print("- Bạn đã chọn thời gian tìm kiếm.")
 
       except Exception as e:
@@ -364,7 +381,6 @@ def crawl_hoa_don_mua_vao(driver):
       print('- Finish click tìm kiếm hóa đơn mua vào')
       time.sleep(2)
       
- 
 # ( Hàm Thêm stt sau mỗi file trùng tên )
 def get_unique_filename(base_filename):
       """
@@ -468,10 +484,7 @@ def extract_table_mua_vao_to_csv(driver, output_file):
       except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
 
-
-
-
-# ( Hàm  Chụp màn hình hóa đơn chi tiết )
+# Chụp màn hình hóa đơn chi tiết
 def capture_full_page(driver, save_path):
       try:
             WebDriverWait(driver, 10).until(
@@ -531,12 +544,8 @@ def capture_full_page(driver, save_path):
 
       except Exception as e:
             print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
-
-
-
-
         
-# Task 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu tr trong bảng
+# 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu tr trong bảng
 def extract_img_hoa_don_mua_vao(driver):
       try:
             
@@ -593,9 +602,7 @@ def extract_img_hoa_don_mua_vao(driver):
             print(f"[ERROR] Lỗi chung: {e}")
 
 
-
-      
-# Task 5 chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu    
+# 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu    
 def crawl_hoa_don_ban_ra(driver):
       # Chọn Tra cứu hóa đơn điện tử bán ra (đảm bảo đã click vào tab này trước)
       mua_vao_button = WebDriverWait(driver, 10).until(
@@ -631,7 +638,7 @@ def crawl_hoa_don_ban_ra(driver):
       time.sleep(2)
             
       
-# Task 6 xuất dữ liệu ở trang ( - Tra cứu hóa đơn điện tử bán ra - ) ra file csv
+# 6. xuất dữ liệu ở trang ( - Tra cứu hóa đơn điện tử bán ra - ) ra file csv
 def extract_table_ban_ra_to_csv(driver, output_file_ra):
       """Lấy dữ liệu từ bảng ngang có thanh cuộn và lưu vào file CSV."""
       
@@ -718,7 +725,7 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
 
 
-# Task 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu tr trong bảng
+# 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu tr trong bảng
 def extract_img_hoa_don_ban_ra(driver):
       try:
             
@@ -774,14 +781,15 @@ def extract_img_hoa_don_ban_ra(driver):
       except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
 
-# Cấu hình kết nối cơ sở dữ liệu
-DB_CONFIG = {
-      'dbname': 'hoadondientu',
-      'user': 'postgres',
-      'password': '123456',
-      'host': 'localhost',
-      'port': 5432
-}
+# Modify the DB_CONFIG to use parsed arguments
+def get_db_config(args):
+    return {
+        'dbname': args.db_name,
+        'user': args.db_user,
+        'password': args.db_password,
+        'host': args.db_host,
+        'port': args.db_port
+    }
 
 # Tạo bảng nếu chưa tồn tại
 CREATE_TABLE_QUERY = """
@@ -828,11 +836,50 @@ def convert_date(date_str):
       return datetime.strptime(date_str, '%d/%m/%Y').strftime('%Y-%m-%d')
 
 # Hàm lưu dữ liệu vào PostgreSQL
-def save_to_database(data, image_path, loai_hoa_don):
+def get_latest_files_by_timestamp(csv_pattern, img_pattern):
+    """
+    Get the latest CSV and corresponding images based on creation timestamp
+    Returns tuple of (csv_file, list_of_images)
+    """
+    try:
+        # Get all matching files with their timestamps
+        csv_files = list(Path('.').glob(csv_pattern))
+        img_files = list(Path('.').glob(img_pattern))
+        
+        if not csv_files:
+            print(f"No CSV files found matching pattern: {csv_pattern}")
+            return None, []
+            
+        # Get the latest CSV file
+        latest_csv = max(csv_files, key=os.path.getctime)
+        csv_timestamp = os.path.getctime(latest_csv)
+        
+        # Filter images created after the CSV file
+        relevant_images = [
+            img for img in img_files 
+            if os.path.getctime(img) >= csv_timestamp
+        ]
+        
+        # Sort images by creation time
+        relevant_images.sort(key=os.path.getctime)
+        
+        return str(latest_csv), [str(img) for img in relevant_images]
+        
+    except Exception as e:
+        print(f"Error getting latest files: {e}")
+        return None, []
+
+def save_to_database(data, image_paths, loai_hoa_don):
+    """
+    Modified save_to_database function to handle multiple images per CSV
+    """
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                for _, row in data.iterrows():
+                for idx, (_, row) in enumerate(data.iterrows()):
+                    # Get corresponding image path for this row
+                    image_path = image_paths[idx] if idx < len(image_paths) else None
+                    
                     invoice_query = """
                     INSERT INTO invoices (mau_so, ky_hieu, so_hoa_don, ngay_lap, tong_tien, trang_thai, image_path, image_data)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -845,6 +892,12 @@ def save_to_database(data, image_path, loai_hoa_don):
                         image_data = EXCLUDED.image_data
                     RETURNING id;
                     """
+                    
+                    image_data = None
+                    if image_path and os.path.exists(image_path):
+                        with open(image_path, 'rb') as img_file:
+                            image_data = img_file.read()
+                            
                     invoice_values = (
                         row.get('mau_so'),
                         row.get('ky_hieu'),
@@ -853,14 +906,15 @@ def save_to_database(data, image_path, loai_hoa_don):
                         row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
                         row.get('trang_thai'),
                         image_path,
-                        open(image_path, 'rb').read() if image_path else None
+                        image_data
                     )
 
                     cur.execute(invoice_query, invoice_values)
                     invoice_id = cur.fetchone()[0]
 
+                    # Handle specific invoice type tables
                     if loai_hoa_don == "mua_vao":
-                        mua_vao_query = """
+                        specific_query = """
                         INSERT INTO mua_vao (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_data, thong_tin_nguoi_ban)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
@@ -871,19 +925,17 @@ def save_to_database(data, image_path, loai_hoa_don):
                             image_data = EXCLUDED.image_data,
                             thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban;
                         """
-                        mua_vao_values = (
+                        specific_values = (
                             invoice_id,
                             row.get('ky_hieu'),
                             row.get('so_hoa_don'),
                             row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
                             image_path,
-                            open(image_path, 'rb').read() if image_path else None,
+                            image_data,
                             row.get('thong_tin_nguoi_ban')
                         )
-                        cur.execute(mua_vao_query, mua_vao_values)
-
-                    elif loai_hoa_don == "ban_ra":
-                        ban_ra_query = """
+                    else:  # ban_ra
+                        specific_query = """
                         INSERT INTO ban_ra (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_data, thong_tin_nguoi_mua)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
@@ -894,17 +946,18 @@ def save_to_database(data, image_path, loai_hoa_don):
                             image_data = EXCLUDED.image_data,
                             thong_tin_nguoi_mua = EXCLUDED.thong_tin_nguoi_mua;
                         """
-                        ban_ra_values = (
+                        specific_values = (
                             invoice_id,
                             row.get('ky_hieu'),
                             row.get('so_hoa_don'),
                             row.get('tong_tien').replace('.', '') if row.get('tong_tien') else None,
                             image_path,
-                            open(image_path, 'rb').read() if image_path else None,
+                            image_data,
                             row.get('thong_tin_nguoi_mua')
                         )
-                        cur.execute(ban_ra_query, ban_ra_values)
-
+                    
+                    cur.execute(specific_query, specific_values)
+                    
         print(f"Dữ liệu hóa đơn {loai_hoa_don} đã được lưu thành công.")
     except Exception as e:
         print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
@@ -931,66 +984,64 @@ if latest_png_mua:
 if latest_png_ban:
     print(f"Using latest PNG_ban file: {latest_png_ban}")
 
-# Quy trình chính
-def main_workflow():
-      # Tạo bảng nếu chưa tồn tại
-      with get_connection() as conn:
-            with conn.cursor() as cur:
-                  cur.execute(CREATE_TABLE_QUERY)
+# Quy trình database chính
+def main_db_workflow():
+    # Tạo bảng nếu chưa tồn tại
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(CREATE_TABLE_QUERY)
 
-      # Đường dẫn tới tệp dữ liệu
-      # csv_files = ["hoa_don_ban_ra.cs+v", "hoa_don_mua_vao.csv"]
-      # png_mua_path = "hoadon_muavao_chitiet_stt_1.png"
+    # Get latest files for both types
+    mua_vao_csv, mua_vao_images = get_latest_files_by_timestamp(
+        "hoa_don_mua_vao*.csv", 
+        "hoadon_muavao_chitiet_stt_*.png"
+    )
+    ban_ra_csv, ban_ra_images = get_latest_files_by_timestamp(
+        "hoa_don_ban_ra*.csv", 
+        "hoadon_banra_chitiet_stt_*.png"
+    )
 
-      # Lấy file mới nhất
-      csv_files = [
-        get_latest_file("hoa_don_ban_ra*.csv"),
-        get_latest_file("hoa_don_mua_vao*.csv"),
-      ]
-      png_mua_path = get_latest_file("hoadon_muavao_chitiet_stt_*.png")
-      png_ban_path = get_latest_file("hoadon_banra_chitiet_stt_*.png")
-
-      for csv_file in csv_files:
-            if not os.path.exists(csv_file):
-                  print(f"Không tìm thấy tệp: {csv_file}")
-                  continue
-
-            # Đọc dữ liệu từ tệp CSV
-            data = pd.read_csv(csv_file)
-
-            # Chuẩn hóa tên cột
-            data.rename(columns={
-                  'Ký hiệumẫu số': 'mau_so',
-                  'Ký hiệuhóa đơn': 'ky_hieu',
-                  'Số hóa đơn': 'so_hoa_don',
-                  'Ngày lập': 'ngay_lap',
-                  'Thông tin người bán': 'thong_tin_nguoi_ban',
-                  'Thông tin hóa đơn': 'thong_tin_nguoi_mua',
-                  'Tổng tiềnthanh toán': 'tong_tien',
-                  'Trạng tháihóa đơn': 'trang_thai'
-            }, inplace=True)
-
-            # Kiểm tra các cột cần thiết
-            required_columns = ['mau_so', 'ky_hieu', 'so_hoa_don', 'ngay_lap', 'tong_tien', 'trang_thai']
-            if not all(col in data.columns for col in required_columns):
-                  print(f"Các cột cần thiết không có trong tệp: {csv_file}")
-                  continue
-
-            # Xử lý giá trị thiếu của cột "thong_tin_nguoi_ban"
-            if 'thong_tin_nguoi_ban' not in data.columns:
-                  data['thong_tin_nguoi_ban'] = None
+    # Process mua vao
+    if mua_vao_csv:
+        data = pd.read_csv(mua_vao_csv)
+        data.rename(columns={
+            'Ký hiệumẫu số': 'mau_so',
+            'Ký hiệuhóa đơn': 'ky_hieu',
+            'Số hóa đơn': 'so_hoa_don',
+            'Ngày lập': 'ngay_lap',
+            'Thông tin người bán': 'thong_tin_nguoi_ban',
+            'Tổng tiềnthanh toán': 'tong_tien',
+            'Trạng tháihóa đơn': 'trang_thai'
+        }, inplace=True)
+        
+        if 'thong_tin_nguoi_ban' not in data.columns:
+            data['thong_tin_nguoi_ban'] = None
             
-            if 'thong_tin_nguoi_mua' not in data.columns:
-                  data['thong_tin_nguoi_mua'] = None
+        save_to_database(data, mua_vao_images, "mua_vao")
+        print(f"Processed mua vao data from {mua_vao_csv}")
 
-            # Lưu dữ liệu vào cơ sở dữ liệu
-            if "mua_vao" in csv_file:
-                  save_to_database(data, png_mua_path, "mua_vao")
-            else:
-                  save_to_database(data, png_ban_path, "ban_ra")
-            print(f"Dữ liệu từ {csv_file} đã được lưu vào cơ sở dữ liệu.")
-      fetch_image_data('mua_vao')
-      fetch_image_data('ban_ra')
+    # Process ban ra
+    if ban_ra_csv:
+        data = pd.read_csv(ban_ra_csv)
+        data.rename(columns={
+            'Ký hiệumẫu số': 'mau_so',
+            'Ký hiệuhóa đơn': 'ky_hieu',
+            'Số hóa đơn': 'so_hoa_don',
+            'Ngày lập': 'ngay_lap',
+            'Thông tin hóa đơn': 'thong_tin_nguoi_mua',
+            'Tổng tiềnthanh toán': 'tong_tien',
+            'Trạng tháihóa đơn': 'trang_thai'
+        }, inplace=True)
+        
+        if 'thong_tin_nguoi_mua' not in data.columns:
+            data['thong_tin_nguoi_mua'] = None
+            
+        save_to_database(data, ban_ra_images, "ban_ra")
+        print(f"Processed ban ra data from {ban_ra_csv}")
+
+    # Fetch and verify saved images
+    fetch_image_data('mua_vao')
+    fetch_image_data('ban_ra')
 
 def fetch_image_data(table_name):
     query = f"SELECT id, image_path, image_data FROM {table_name};"
@@ -1014,38 +1065,70 @@ def fetch_image_data(table_name):
     except Exception as e:
         print(f"Lỗi chuyển đổi hình ảnh từ bảng {table_name}: {e}")
 
-# ====  ( finish chạy chương trình )  ====
-def main():
-      """Chạy tất cả các Function trong quy trình crawl data hoadondientu"""
-      driver = initialize_driver()
+def ensure_database_exists(args): #Cái này Phúc mới thêm
+    try:
+        # Kết nối đến database tên "postgres" mặc định để kiểm tra kết nối
+        connection = psycopg2.connect(
+            dbname="postgres",
+            user=args.db_user,
+            password=args.db_password,
+            host=args.db_host,
+            port=args.db_port
+        )
+        connection.autocommit = True
+        with connection.cursor() as cursor:
+            # Kiểm tra nếu database tồn tại
+            cursor.execute(
+                "SELECT 1 FROM pg_database WHERE datname = %s", (args.db_name,)
+            )
+            exists = cursor.fetchone()
+            if not exists:
+                # Tạo mới database
+                cursor.execute(sql.SQL("CREATE DATABASE {}").format(
+                    sql.Identifier(args.db_name)
+                ))
+                print(f"Database '{args.db_name}' created successfully.")
+            else:
+                print(f"Database '{args.db_name}' already exists.")
+    except Exception as e:
+        print(f"Error ensuring database exists: {e}")
+        raise
+    finally:
+        if connection:
+            connection.close()
 
-      # Thay thế username, password vào
-      username = "0101652097"
-      password = "At2025@@@"
-      output_file = "hoa_don_mua_vao.csv"
-      output_file_ra = "hoa_don_ban_ra.csv"
-      
-      captcha_image_path = "captcha_image.svg"
-      
-      try:
-            login_to_thuedientu(driver, username, password)
-            crawl_img(driver) 
-            enter_verification_code(driver, captcha_image_path) # tự động nhập mã captcha đã giải được
-            
-            submit_form(driver, captcha_image_path)
-            
-            crawl_hoa_don_mua_vao(driver)
-            extract_table_mua_vao_to_csv(driver, output_file)
-            extract_img_hoa_don_mua_vao(driver)
-            
-            crawl_hoa_don_ban_ra(driver)
-            extract_table_ban_ra_to_csv(driver, output_file_ra)
-            extract_img_hoa_don_ban_ra(driver)
-            main_workflow()
-      except Exception as e:
-            print(f"An error occurred: {e}")
-      # finally:
-      #       driver.quit()  # Đóng trình duyệt sau khi hoàn thành
+def main():
+    """Chạy tất cả các Function trong quy trình crawl data hoadondientu"""
+    args = parse_arguments()
+
+    # Cái này Phúc mới thêm
+    # Chạy hàm để kiểm tra và tạo database
+    ensure_database_exists(args)
+    
+    # Update DB_CONFIG with parsed arguments
+    global DB_CONFIG
+    DB_CONFIG = get_db_config(args)
+    
+    driver = initialize_driver()
+    
+    output_file = "hoa_don_mua_vao.csv"
+    output_file_ra = "hoa_don_ban_ra.csv"
+    captcha_image_path = "captcha_image.svg"
+    
+    try:
+        login_to_thuedientu(driver, args.username, args.password)
+        crawl_img(driver) 
+        enter_verification_code(driver, captcha_image_path)
+        submit_form(driver, captcha_image_path)
+        crawl_hoa_don_mua_vao(driver)
+        extract_table_mua_vao_to_csv(driver, output_file)
+        extract_img_hoa_don_mua_vao(driver)
+        crawl_hoa_don_ban_ra(driver)
+        extract_table_ban_ra_to_csv(driver, output_file_ra)
+        extract_img_hoa_don_ban_ra(driver)
+        main_db_workflow() #Cái này Phúc đổi lại tên hàm
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 if __name__ == '__main__':
-      main() 
+    main()
