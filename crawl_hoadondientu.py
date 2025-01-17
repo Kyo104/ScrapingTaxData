@@ -32,7 +32,7 @@ HOADON_USERNAME = "0101652097"  # Tùy biến
 HOADON_PASSWORD = "At2025@@@"  # Tùy biến
 
 # API key cho dịch vụ giải captcha
-API_KEY = "e61169c7b2c94188e7e1234f558f69a1"
+API_KEY = "#"
 
 # Mục thông tin kết nối database
 DB_USER = "postgres"  # Mặc định
@@ -1177,6 +1177,7 @@ def main():
         main_db_workflow() #Cái này Phúc đổi lại tên hàm
     except Exception as e:
         print(f"An error occurred: {e}")
+        send_slack_notification("Chương trình chạy thất bại", webhook_url)
 
 if __name__ == '__main__':
     main()
