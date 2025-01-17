@@ -21,6 +21,8 @@ import base64
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import argparse
+import requests
+import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập Thuế Điện Tử
@@ -28,7 +30,7 @@ THUEDIENTU_USERNAME = "0101652097-ql"  # Tùy biến
 THUEDIENTU_PASSWORD = "At2025$$$"  # Tùy biến
 
 # API key cho dịch vụ giải captcha
-API_KEY = "2fd46e197a886b8606fd140e3fe1f20b"  # Tùy biến
+API_KEY = "#"  # Tùy biến
 
 # Mục thông tin kết nối database
 DB_USER = "postgres"  # Mặc định
@@ -37,42 +39,29 @@ DB_NAME = "data_thue_dien_tu"
 DB_HOST = "localhost"  # Mặc định
 DB_PORT = "5432"  # Mặc định
 
-# URL Webhook Slack mặc định
-WEBHOOK_URL = '#'
-
-print('hello thuedientu')
+WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 # ==============================================================================
-
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
     parser.add_argument('--username', default=THUEDIENTU_USERNAME,
-                        required=False,
                        help='Tên đăng nhập cho trang web Thuế điện tử')
     parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
-                        required=False,
                        help='Mật khẩu nhập cho trang web Thuế điện tử')
-    parser.add_argument('--api-key', default=API_KEY, 
-                        required=False,
+    parser.add_argument('--api-key', default=API_KEY,
                        help='API key từ trang web autocaptcha để giải captcha')
-    parser.add_argument('--db-user', default=DB_USER, 
-                        required=False,
+    parser.add_argument('--db-user', default=DB_USER,
                        help='PostgreSQL username')
-    parser.add_argument('--db-password', default=DB_PASSWORD, 
-                        required=False,
+    parser.add_argument('--db-password', default=DB_PASSWORD,
                        help='PostgreSQL password')
-    parser.add_argument('--db-name', default=DB_NAME, 
-                        required=False,
+    parser.add_argument('--db-name', default=DB_NAME,
                        help='Database name')
-    parser.add_argument('--db-host', default=DB_HOST, 
-                        required=False,
+    parser.add_argument('--db-host', default=DB_HOST,
                        help='Database host')
-    parser.add_argument('--db-port', default=DB_PORT, 
-                        required=False,
+    parser.add_argument('--db-port', default=DB_PORT,
                        help='Database port')
-    parser.add_argument('--webhook-url', default=WEBHOOK_URL, 
-                        required=False,
-                        help='Liên kết webhook từ Slack')  
+    parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
+                        help='Liên kết webhook từ Slack')  # Thêm dòng này
     
     return parser.parse_args()
 
@@ -92,7 +81,9 @@ def initialize_driver():
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--force-device-scale-factor=1")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    
     driver = webdriver.Chrome(options=chrome_options)
+    
     driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
     time.sleep(2)
     return driver
@@ -103,6 +94,7 @@ def login_to_thuedientu(driver, username, password):
     url = 'https://thuedientu.gdt.gov.vn/etaxnnt/Request'
     driver.get(url)
     print('- Finish initializing a driver')
+    send_slack_notification('Chương trình đang thực hiện lấy dữ liệu trang thuedientu', webhook_url)
     time.sleep(2)
 
     # Nhấn nút Doanh Nghiệp
@@ -142,15 +134,57 @@ def login_to_thuedientu(driver, username, password):
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
     
+    
+    
+
+
+
+def send_slack_notification(message, webhook_url):
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    payload = {
+        "text": message  # Nội dung thông báo
+    }
+    try:  
+      response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+      
+      if response.status_code == 200:
+            print("Thông báo đã được gửi thành công!")
+      else:
+            print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
+    except:
+          pass
+
+
+# Thay 'YOUR_WEBHOOK_URL' bằng URL Webhook mà bạn đã lấy từ Slack
+# webhook_url = 'https://hooks.slack.com/services/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'
+
+# Gửi thông báo
+
+  
+    
+    
+    
+    
+    
+    
+    
 # Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
     """Tải ảnh CAPTCHA về máy."""
     try:
+        # refresh_button = driver.find_element(By.CLASS_NAME, 'lam_moi_mxn')
+        # refresh_button.click()
+        # print("Refreshed CAPTCHA")
+
+        # Sau đó, chụp lại CAPTCHA mới
         captcha_element = driver.find_element(By.ID, 'safecode')
         captcha_element.screenshot("captcha_image.png")
         print("[INFO] CAPTCHA đã được lưu tại captcha_image.png")
     except Exception as e:
         print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 # Gửi ảnh lên autocaptcha để giải mã
 def solve_captcha(image_base64):
@@ -185,7 +219,9 @@ def solve_captcha(image_base64):
             return None
     except Exception as e:
         print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
+
 
 # Xử lý ảnh CAPTCHA và giải mã
 def solve_captcha_from_file(file_path):
@@ -205,34 +241,52 @@ def solve_captcha_from_file(file_path):
         return captcha_text
     except Exception as e:
         print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
 
-# 1.2 Nhập mã CAPTCHA tự động
-def enter_verification_code(driver, captcha_image_path):
-    """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
-    try:
-        # Giải mã CAPTCHA chỉ một lần
-        captcha_code = solve_captcha_from_file(captcha_image_path)
-        if not captcha_code:
-            print("[ERROR] Không thể giải mã CAPTCHA.")
-            return False
+# # 1.2 Nhập mã CAPTCHA tự động
+# def enter_verification_code(driver, captcha_image_path):
+#     """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
+#     try:
+#         # Giải mã CAPTCHA chỉ một lần
+#         captcha_code = solve_captcha_from_file(captcha_image_path)
+#         if not captcha_code:
+#             print("[ERROR] Không thể giải mã CAPTCHA.")
+#             return False
 
-        # Tìm trường nhập CAPTCHA
-        verification_code_field = driver.find_element(By.ID, 'vcode')
+#         # Tìm trường nhập CAPTCHA
+#         verification_code_field = driver.find_element(By.ID, 'vcode')
 
-        # Nhập mã CAPTCHA vào trường
-        verification_code_field.clear()
-        verification_code_field.send_keys(captcha_code)
-        time.sleep(2)
+#         # Nhập mã CAPTCHA vào trường
+#         verification_code_field.clear()
+#         verification_code_field.send_keys(captcha_code)
+#         time.sleep(2)
 
-        # Log giá trị sau khi nhập để kiểm tra
-        captcha_value = verification_code_field.get_attribute('value')
-        print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
+#         # Log giá trị sau khi nhập để kiểm tra
+#         captcha_value = verification_code_field.get_attribute('value')
+#         print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
 
-        return True
-    except Exception as e:
-        print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
-        return False
+#         return True
+#     except Exception as e:
+#         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+#         return False
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+
+# 1.2 Nhập mã captcha thủ công
+def enter_verification_code(driver):
+    """Nhập mã xác nhận."""
+    # Yêu cầu người dùng nhập mã xác nhận
+    code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
+    # Tìm và nhập Mã xác nhận
+    verification_code_field = driver.find_element(By.ID, 'vcode')
+    verification_code_field.send_keys(code)
+    print('- Finish keying in verification code')
+    time.sleep(2)
+    # Log giá trị sau khi nhập
+    captcha_value = verification_code_field.get_attribute('value')
+    print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
+
+# -----------------------------------------------------------------------------
 
 def retry_user_pass_doituong(driver, username, password):
     # Nhập tên đăng nhập
@@ -254,15 +308,20 @@ def retry_user_pass_doituong(driver, username, password):
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
     
+    
 # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
 def submit_form(driver, username, password, captcha_image_path):
     """Nhấn nút để hoàn tất đăng nhập."""
     try:
+        attempt = 0  # Biến theo dõi số lần thử đăng nhập
         while True:
+            
+            attempt += 1  # Tăng số lần thử đăng nhập
             # Nhấn nút để gửi biểu mẫu
             submit_button = driver.find_element(By.XPATH, '//*[@id="dangnhap"]')
             submit_button.click()
-            print('- Finish submitting the form')
+            print(f'- Finish submitting the form (attempt {attempt})')
+            send_slack_notification(f'Chương trình đang thực hiên login lần {attempt}', webhook_url)
             
             # Kiểm tra nếu có thông báo lỗi CAPTCHA
             try:
@@ -272,6 +331,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 )
                 if error_message:
                     print("[ERROR] Mã xác nhận nhập sai. Đang thử lại...")
+                    send_slack_notification('Login thất bại, đang thử lại', webhook_url)
                     # Nhập lại các trường thông tin
                     retry_user_pass_doituong(driver, username, password)
                     #---------------------------------------------------------------------------------------------------------------------------------
@@ -296,6 +356,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 )
                 if tra_cuu_element:
                     print("[INFO] Đăng nhập thành công! Đã vào trang chính.")
+                    send_slack_notification('Chương trình đã login thành công vào trang thuedientu', webhook_url)
                     return  # Thoát khỏi hàm khi thành công
             except TimeoutException:
                 print("[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại...")
@@ -305,6 +366,7 @@ def submit_form(driver, username, password, captcha_image_path):
             break
     except Exception as e:
         print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
     
 # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
 # ( Hàm Thêm stt sau mỗi file trùng tên )
@@ -359,6 +421,7 @@ def save_to_excel_with_style(df, file_name):
     # Lưu file
     workbook.save(unique_file_name)
     print(f"Dữ liệu đã được lưu vào file Excel: {file_name}")
+    send_slack_notification(f'Chương trình đã lưu thành công file {file_name}', webhook_url)
     # Trả về tên file để điều chỉnh kích thước cột
     return unique_file_name
     
@@ -481,6 +544,7 @@ def crawl(driver):
     else:
         print("Không tìm thấy bảng với id 'data_content_onday'.")
         df = pd.DataFrame()  # Trả về DataFrame rỗng nếu không tìm thấy bảng
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
     return df
 
@@ -675,6 +739,8 @@ def process_and_create_tables(db_config):
     except Exception as e:
         print(f"Lỗi khi xử lý và tạo bảng: {e}")
 
+
+
 def main():
     """Main function to run the crawler with parsed arguments."""
     # Parse command line arguments
@@ -711,6 +777,7 @@ def main():
             host=db_config['host'],
             port=db_config['port']
         )
+        
         
         if engine and not df.empty:
             # Save to Excel
