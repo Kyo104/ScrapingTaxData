@@ -24,10 +24,10 @@ import requests
 import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
-# Mục thông tin đăng nhập BHXH
+# Mục thông tin đăng nhập trang bảo hiểm xã hội
 BHXH_USERNAME = "0101850613"
 BHXH_PASSWORD = "@ATDT2024"
-BHXH_MONTH = "1"  # Thêm biến môi trường mới cho tháng
+BHXH_MONTH = "1"  
 
 # API key cho dịch vụ giải captcha
 API_KEY = "#"
@@ -38,19 +38,22 @@ DB_PASSWORD = "123456"
 DB_NAME = "data_bao_hiem_xa_hoi"
 DB_HOST = "localhost"
 DB_PORT = "5432"
+
+# URL Webhook Slack mặc định
 WEBHOOK_URL = '#'
-# ==============================================================================
 
 print('hello baohiemxahoi')
+# ==============================================================================
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='BHXH Data Crawler')
+    
     parser.add_argument('--username', default=BHXH_USERNAME, required=False,
                       help='Tên đăng nhập cho trang bảo hiểm xã hội')
     parser.add_argument('--password', default=BHXH_PASSWORD, required=False,
                       help='Mật khẩu cho trang bảo hiểm xã hội')
     parser.add_argument('--month', default=BHXH_MONTH, required=False,
-                      help='Tháng cần crawl (1-12)')  # Thêm argument mới cho tháng
+                      help='Tháng cần crawl (1-12)') 
     parser.add_argument('--api-key', default=API_KEY, required=False,
                       help='API key từ trang web autocaptcha để giải captcha')
     parser.add_argument('--db-user', default=DB_USER, required=False,
@@ -67,9 +70,7 @@ def parse_arguments():
                       help='Liên kết webhook từ Slack')
     return parser.parse_args()
 
-# Gọi hàm để lấy các giá trị tham số
 args = parse_arguments()
-# Sử dụng giá trị từ args
 webhook_url = args.webhook_url
 print(f"Sử dụng webhook_url: {webhook_url}")
 
@@ -81,15 +82,14 @@ def initialize_driver():
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
       chrome_options.add_argument("--disable-dev-shm-usage") 
-      chrome_options.add_argument("--remote-debugging-port=9222")  # Cấu hình cổng cho DevTools
-      chrome_options.add_argument("--disable-software-rasterizer")  # Tắt phần mềm rasterizer (để tránh lỗi bộ nhớ thấp)
-      chrome_options.add_argument("--force-device-scale-factor=1")  # Điều chỉnh tỷ lệ hiển thị của thiết bị
-      chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Ẩn việc sử dụng WebDriver
-      chrome_options.add_argument("--disable-extensions")  # Tắt các tiện ích mở rộng
-      chrome_options.add_argument("--enable-javascript")  # Bật JavaScript
-
+      chrome_options.add_argument("--remote-debugging-port=9222")  
+      chrome_options.add_argument("--disable-software-rasterizer")  
+      chrome_options.add_argument("--force-device-scale-factor=1")  
+      chrome_options.add_argument("--disable-blink-features=AutomationControlled") 
+      chrome_options.add_argument("--disable-extensions")  
+      chrome_options.add_argument("--enable-javascript")  
       driver = webdriver.Chrome(options=chrome_options)
-      driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
+      driver.maximize_window() 
       time.sleep(5)
       send_slack_notification('Chương trình đang thực hiện lấy dữ liệu trang baohiemxahoi', webhook_url)
       return driver
@@ -134,14 +134,12 @@ def login_to_baohiemxahoi(driver, username, password):
       print('- Finish keying in password_field')
       time.sleep(3)
 
-
-
 def send_slack_notification(message, webhook_url):
     headers = {
         'Content-Type': 'application/json',
     }
     payload = {
-        "text": message  # Nội dung thông báo
+        "text": message  
     }
     try:  
       response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
@@ -152,16 +150,11 @@ def send_slack_notification(message, webhook_url):
             print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
     except:
           pass
-
- 
+    
 # 1.1 Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
       """Tải ảnh CAPTCHA về máy."""
       try:
-            # Tạo thư mục nếu chưa tồn tại
-            
-            
-            # Tìm thẻ <img> có alt="captcha"
             captcha_element = driver.find_element(By.XPATH, '//img[@alt="captcha"]')
 
             # Lấy giá trị của thuộc tính src chứa ảnh CAPTCHA (dạng base64)
@@ -385,9 +378,6 @@ def get_unique_filename(base_filename):
       return new_filename
 
 def download_blob_pdf(driver, save_path):
-      """
-      Tải file PDF từ blob URL thông qua JavaScript và lưu vào đường dẫn chỉ định.
-      """
       try:
             print("[INFO] Đang trích xuất nội dung từ blob URL qua JavaScript...")
             pdf_data = driver.execute_script("""
@@ -446,13 +436,6 @@ def download_tab_data(driver, save_path):
             return None
 
 def find_months(driver, month):
-    """
-    Chọn tháng từ argument thay vì input người dùng
-    
-    Args:
-        driver: WebDriver instance
-        month (str): Tháng được chọn (1-12)
-    """
     try:
         # Chuyển đổi tháng sang số nguyên và validate
         thang = int(month)
@@ -479,14 +462,6 @@ def find_months(driver, month):
 
 # Hàm trích xuất dữ liệu và xuất ra CSV:
 def extract_specific_rows(pdf_path, output_csv_path):
-      """
-      Trích xuất các cột cuối cùng từ các hàng chứa các tiêu đề cụ thể
-      và lưu thông tin ra file CSV.
-      
-      Args:
-            pdf_path (str): Đường dẫn đến file PDF.
-            output_csv_path (str): Đường dẫn lưu file CSV.
-      """
       # Các tiêu đề cần tìm trong PDF
       target_keywords = [
             "Kỳ trước mang sang",
@@ -520,7 +495,7 @@ def extract_specific_rows(pdf_path, output_csv_path):
       print(f"[INFO] Dữ liệu đã được lưu tại: {unique_csv_path}")
       send_slack_notification(f"Chương trình đã lưu thành công file {unique_csv_path} ", webhook_url)
         
-# Task 2 Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
+# 2. Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
 def crawl(driver, month):
       # Nhấn nút tra cứu Hồ sơ
       tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')
@@ -588,9 +563,12 @@ def load_csv_to_database(engine):
       
         latest_csv_file = max(list_of_files, key=os.path.getctime)  
         # Đọc file CSV vào DataFrame
+        
         df = pd.read_csv(latest_csv_file, encoding='utf-8-sig') 
+        
         # Thay thế các giá trị null bằng chuỗi rỗng
         df = df.fillna('')
+        
         # Định nghĩa kiểu dữ liệu cho các cột khi lưu vào database
         dtype = {
             'Kỳ trước mang sang': Numeric,  
@@ -609,14 +587,12 @@ def load_csv_to_database(engine):
 
 def main():
     args = parse_arguments()
-    
     captcha_image_path = "captcha_image.png"
     try:
-        # Initialize driver
         driver = initialize_driver()
         
-        # Login process using parsed arguments
         login_to_baohiemxahoi(driver, args.username, args.password)
+        
         save_captcha_image(driver)
         
         enter_verification_code(driver, captcha_image_path)
