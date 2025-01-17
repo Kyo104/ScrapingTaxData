@@ -28,25 +28,25 @@ import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập Hóa đơn điện tử
-HOADON_USERNAME = "0101652097"  # Tùy biến
-HOADON_PASSWORD = "At2025@@@"  # Tùy biến
+HOADON_USERNAME = "0101652097"  
+HOADON_PASSWORD = "At2025@@@"  
 
 # API key cho dịch vụ giải captcha
 API_KEY = "#"
 
 # Mục thông tin kết nối database
-DB_USER = "postgres"  # Mặc định
-DB_PASSWORD = "123456"  # Tùy biến
+DB_USER = "postgres" 
+DB_PASSWORD = "123456" 
 DB_NAME = "data_hoa_don_dien_tu"
-DB_HOST = "localhost"  # Mặc định
-DB_PORT = "5432"  # Mặc định
+DB_HOST = "localhost" 
+DB_PORT = "5432" 
 
 # URL Webhook Slack mặc định
 WEBHOOK_URL = '#'
 
 print('hello hoadondientu')
-
 # ==============================================================================
+
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Hóa đơn điện tử Data Crawler')
@@ -68,13 +68,11 @@ def parse_arguments():
     parser.add_argument('--db-port', default=DB_PORT, required=False,
                         help='Database port')
     parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
-                        help='Liên kết webhook từ Slack')  # Thêm dòng này
+                        help='Liên kết webhook từ Slack')  
     
     return parser.parse_args()
 
-# Gọi hàm để lấy các giá trị tham số
 args = parse_arguments()
-# Sử dụng giá trị từ args
 webhook_url = args.webhook_url
 print(f"Sử dụng webhook_url: {webhook_url}")
 
@@ -101,14 +99,15 @@ def initialize_driver():
 
 # 1.1 Nhập username và password vào trang web 'hoadondientu'
 def login_to_thuedientu(driver, username, password):
+      
       """Đăng nhập vào trang web 'hoadondientu'."""
+      
       url = 'https://hoadondientu.gdt.gov.vn/'
       driver.get(url)
       print('- Finish initializing a driver')
       send_slack_notification('Chương trình đang thực hiện lấy dữ liệu trang hoadondientu', webhook_url)
       time.sleep(3)
       
-    # Nhấn nút X tắt thông báo
       try:
             X_button = WebDriverWait(driver, 10).until(
                   EC.element_to_be_clickable((By.XPATH, '/html/body/div[2]/div/div[2]/div/div[2]/button/span'))
@@ -251,8 +250,6 @@ def solve_captcha_from_file(file_path):
                 img.save(buffered, format="PNG")
                 image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-        # Gửi ảnh base64 lên AntiCaptcha để giải mã
-        # Chỉ gọi API một lần
         captcha_text = solve_captcha(image_base64)
 
         # Trả về mã captcha đã giải, không in ra nhiều lần
@@ -276,9 +273,9 @@ def enter_verification_code(driver, captcha_image_path):
             elements = driver.find_elements(By.ID, 'cvalue')
             print(f"[DEBUG] Số phần tử với id='cvalue': {len(elements)}")
 
-            # Nếu có nhiều hơn một phần tử, chọn phần tử cụ thể (ví dụ: phần tử đầu tiên)
+            # Nếu có nhiều hơn một phần tử, chọn phần tử cụ thể 
             if len(elements) > 1:
-                  captcha_field = elements[1]  # Thay đổi index nếu cần chọn phần tử khác
+                  captcha_field = elements[1]  
             else:
                   captcha_field = elements[0]
 
@@ -589,10 +586,9 @@ def capture_full_page(driver, save_path):
             print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
         
-# 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu tr trong bảng
+# 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu bảng
 def extract_img_hoa_don_mua_vao(driver):
       try:
-            
             # Tìm tất cả phần tử với class 'ant-table-tbody'
             elements2 = driver.find_elements(By.CLASS_NAME, 'ant-table-tbody')
             print(f"[DEBUG] Số phần tử với class='ant-table-tbody': {len(elements2)}")
@@ -646,7 +642,6 @@ def extract_img_hoa_don_mua_vao(driver):
             print(f"[ERROR] Lỗi chung: {e}")
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
-
 # 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu    
 def crawl_hoa_don_ban_ra(driver):
       # Chọn Tra cứu hóa đơn điện tử bán ra (đảm bảo đã click vào tab này trước)
@@ -682,7 +677,6 @@ def crawl_hoa_don_ban_ra(driver):
                                                 
       print('- Finish click tìm kiếm hóa bán ra')
       time.sleep(2)
-            
       
 # 6. xuất dữ liệu ở trang ( - Tra cứu hóa đơn điện tử bán ra - ) ra file csv
 def extract_table_ban_ra_to_csv(driver, output_file_ra):
@@ -770,7 +764,6 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
-
 # 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu trong bảng
 def extract_img_hoa_don_ban_ra(driver):
       try:
@@ -827,7 +820,6 @@ def extract_img_hoa_don_ban_ra(driver):
             print(f"[ERROR] Lỗi chung: {e}")
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
-# Modify the DB_CONFIG to use parsed arguments
 def get_db_config(args):
     return {
         'dbname': args.db_name,
@@ -1146,11 +1138,10 @@ def ensure_database_exists(args): #Cái này Phúc mới thêm
             connection.close()
 
 def main():
+    
     """Chạy tất cả các Function trong quy trình crawl data hoadondientu"""
+    
     args = parse_arguments()
-
-    # Cái này Phúc mới thêm
-    # Chạy hàm để kiểm tra và tạo database
     ensure_database_exists(args)
     
     # Update DB_CONFIG with parsed arguments
@@ -1174,7 +1165,7 @@ def main():
         crawl_hoa_don_ban_ra(driver)
         extract_table_ban_ra_to_csv(driver, output_file_ra)
         extract_img_hoa_don_ban_ra(driver)
-        main_db_workflow() #Cái này Phúc đổi lại tên hàm
+        main_db_workflow() 
     except Exception as e:
         print(f"An error occurred: {e}")
         send_slack_notification("Chương trình chạy thất bại", webhook_url)
