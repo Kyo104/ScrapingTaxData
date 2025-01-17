@@ -26,7 +26,7 @@ from psycopg2 import sql
 import requests
 import json
 
-# =================== BIẾN MÔI TRƯỜNG =================== 
+# =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập Hóa đơn điện tử
 HOADON_USERNAME = "0101652097"  # Tùy biến
 HOADON_PASSWORD = "At2025@@@"  # Tùy biến
@@ -41,8 +41,11 @@ DB_NAME = "data_hoa_don_dien_tu"
 DB_HOST = "localhost"  # Mặc định
 DB_PORT = "5432"  # Mặc định
 
-print(f'Pandas version: {pd.__version__}')
+# URL Webhook Slack mặc định
+WEBHOOK_URL = '#'
+
 print('hello hoadondientu')
+
 # ==============================================================================
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
@@ -64,8 +67,16 @@ def parse_arguments():
                         help='Database host')
     parser.add_argument('--db-port', default=DB_PORT,
                         help='Database port')
+    parser.add_argument('--webhook-url', default=WEBHOOK_URL,
+                        help='Liên kết webhook từ Slack')  # Thêm dòng này
     
     return parser.parse_args()
+
+# Gọi hàm để lấy các giá trị tham số
+args = parse_arguments()
+# Sử dụng giá trị từ args
+webhook_url = args.webhook_url
+print(f"Sử dụng webhook_url: {webhook_url}")
 
 # Đăng nhập vào website https://hoadondientu.gdt.gov.vn/
 def initialize_driver():
@@ -77,21 +88,16 @@ def initialize_driver():
       chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
       chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
       chrome_options.add_argument("--disable-dev-shm-usage") 
-      chrome_options.add_argument("--remote-debugging-port=9222")  # Cấu hình cổng cho DevTools
-      chrome_options.add_argument("--disable-software-rasterizer")  # Tắt phần mềm rasterizer (để tránh lỗi bộ nhớ thấp)
-      chrome_options.add_argument("--force-device-scale-factor=1")  # Điều chỉnh tỷ lệ hiển thị của thiết bị
-      chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Ẩn việc sử dụng WebDriver
-      chrome_options.add_argument("--disable-extensions")  # Tắt các tiện ích mở rộng
-      chrome_options.add_argument("--enable-javascript")  # Bật JavaScript
-
+      chrome_options.add_argument("--remote-debugging-port=9222")  
+      chrome_options.add_argument("--disable-software-rasterizer")  
+      chrome_options.add_argument("--force-device-scale-factor=1") 
+      chrome_options.add_argument("--disable-blink-features=AutomationControlled")  
+      chrome_options.add_argument("--disable-extensions")  
+      chrome_options.add_argument("--enable-javascript")  
       driver = webdriver.Chrome(options=chrome_options)
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
       time.sleep(5)
       return driver
-
-
-
-
 
 # 1.1 Nhập username và password vào trang web 'hoadondientu'
 def login_to_thuedientu(driver, username, password):
@@ -138,8 +144,6 @@ def login_to_thuedientu(driver, username, password):
       print('- Finish keying in password_field')
       time.sleep(2)
 
-
-
 def send_slack_notification(message, webhook_url):
     headers = {
         'Content-Type': 'application/json',
@@ -154,17 +158,6 @@ def send_slack_notification(message, webhook_url):
         print("Thông báo đã được gửi thành công!")
     else:
         print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
-
-# Thay 'YOUR_WEBHOOK_URL' bằng URL Webhook mà bạn đã lấy từ Slack
-webhook_url = 'https://hooks.slack.com/services/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'
-
-# Gửi thông báo
-
-
-
-
-
-
 
 # lưu ảnh captcha về máy dưới dạng svg (tải ảnh về chuẩn rồi)
 def crawl_img(driver):
@@ -233,7 +226,6 @@ def solve_captcha(image_base64):
         print(f"Error with request: {str(e)}")
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
-
 
 # Hàm xử lý ảnh captcha và gửi lên AntiCaptcha
 def solve_captcha_from_file(file_path):
@@ -431,9 +423,6 @@ def crawl_hoa_don_mua_vao(driver):
       
 # ( Hàm Thêm stt sau mỗi file trùng tên )
 def get_unique_filename(base_filename):
-      """
-      Tạo tên file duy nhất nếu file đã tồn tại, bằng cách thêm số thứ tự theo định dạng (1), (2),...
-      """
       if not os.path.exists(base_filename):
             return base_filename
 
@@ -733,7 +722,6 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
                               all_headers += headers[len(all_headers):]  # Thêm cột mới vào cuối
                   else:
                         print("[WARNING] Không tìm thấy tiêu đề bảng.")
-            
                 
                   # Lấy dữ liệu từ tbody
                   # Tìm tất cả phần tử có class 'ant-table-tbody'
@@ -781,10 +769,9 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 
-# 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu tr trong bảng
+# 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu trong bảng
 def extract_img_hoa_don_ban_ra(driver):
       try:
-            
             # Tìm tất cả phần tử với class 'ant-table-tbody'
             elements2 = driver.find_elements(By.CLASS_NAME, 'ant-table-tbody')
             print(f"[DEBUG] Số phần tử với class='ant-table-tbody': {len(elements2)}")
