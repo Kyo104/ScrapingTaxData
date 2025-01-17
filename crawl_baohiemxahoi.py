@@ -46,15 +46,15 @@ print('hello baohiemxahoi')
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='BHXH Data Crawler')
-    parser.add_argument('--username', default=BHXH_USERNAME, help='Username for BHXH portal')
-    parser.add_argument('--password', default=BHXH_PASSWORD, help='Password for BHXH portal')
-    parser.add_argument('--api-key', default=API_KEY, help='API key for autocaptcha service')
-    parser.add_argument('--db-user', default=DB_USER, help='PostgreSQL username')
-    parser.add_argument('--db-password', default=DB_PASSWORD, help='PostgreSQL password')
-    parser.add_argument('--db-name', default=DB_NAME, help='Database name')
-    parser.add_argument('--db-host', default=DB_HOST, help='Database host')
-    parser.add_argument('--db-port', default=DB_PORT, help='Database port')
-    parser.add_argument('--webhook-url', default=WEBHOOK_URL,
+    parser.add_argument('--username', default=BHXH_USERNAME, required=False,help='Tên đăng nhập cho trang bảo hiểm xã hội')
+    parser.add_argument('--password', default=BHXH_PASSWORD, required=False,help='Mật khẩu cho trang bảo hiểm xã hội')
+    parser.add_argument('--api-key', default=API_KEY, required=False, help='API key từ trang web autocaptcha để giải captcha')
+    parser.add_argument('--db-user', default=DB_USER, required=False, help='PostgreSQL username')
+    parser.add_argument('--db-password', default=DB_PASSWORD, required=False, help='PostgreSQL password')
+    parser.add_argument('--db-name', default=DB_NAME, required=False,help='Database name')
+    parser.add_argument('--db-host', default=DB_HOST, required=False,help='Database host')
+    parser.add_argument('--db-port', default=DB_PORT, required=False,help='Database port')
+    parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
                         help='Liên kết webhook từ Slack')  # Thêm dòng này
     return parser.parse_args()
 
