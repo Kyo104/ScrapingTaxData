@@ -23,6 +23,8 @@ from psycopg2.extras import execute_values
 from datetime import datetime
 from pathlib import Path
 from psycopg2 import sql 
+import requests
+import json
 
 # =================== BIẾN MÔI TRƯỜNG =================== 
 # Mục thông tin đăng nhập Hóa đơn điện tử
@@ -87,12 +89,18 @@ def initialize_driver():
       time.sleep(5)
       return driver
 
+
+
+
+
 # 1.1 Nhập username và password vào trang web 'hoadondientu'
 def login_to_thuedientu(driver, username, password):
       """Đăng nhập vào trang web 'hoadondientu'."""
       url = 'https://hoadondientu.gdt.gov.vn/'
       driver.get(url)
       print('- Finish initializing a driver')
+      send_slack_notification('Chương trình đang thực hiện lấy dữ liệu trang hoadondientu', webhook_url)
+      time.sleep(3)
       
     # Nhấn nút X tắt thông báo
       try:
@@ -103,8 +111,10 @@ def login_to_thuedientu(driver, username, password):
             print('- Finish: Tắt thông báo')
       except TimeoutException:
             print("X_button không hiển thị hoặc không thể nhấn")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
       except Exception as e:
             print(f"Đã xảy ra lỗi: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
       # Nhấn nút Đăng nhập
       try:
@@ -115,6 +125,7 @@ def login_to_thuedientu(driver, username, password):
             print('- Finish: Login to hoadondientu')
       except TimeoutException:
             print("Login button không hiển thị hoặc không thể nhấn")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
       # Nhập username
       username_field = driver.find_element(By.ID, 'username')
       username_field.send_keys(username)
@@ -126,6 +137,34 @@ def login_to_thuedientu(driver, username, password):
       password_field.send_keys(password)
       print('- Finish keying in password_field')
       time.sleep(2)
+
+
+
+def send_slack_notification(message, webhook_url):
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    payload = {
+        "text": message  # Nội dung thông báo
+    }
+
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    
+    if response.status_code == 200:
+        print("Thông báo đã được gửi thành công!")
+    else:
+        print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
+
+# Thay 'YOUR_WEBHOOK_URL' bằng URL Webhook mà bạn đã lấy từ Slack
+webhook_url = 'https://hooks.slack.com/services/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'
+
+# Gửi thông báo
+
+
+
+
+
+
 
 # lưu ảnh captcha về máy dưới dạng svg (tải ảnh về chuẩn rồi)
 def crawl_img(driver):
@@ -158,6 +197,7 @@ def crawl_img(driver):
       
       except Exception as e:
             print(f"Đã xảy ra lỗi: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 # Hàm gửi ảnh đến AntiCaptcha
 def solve_captcha(image_base64):
@@ -191,6 +231,7 @@ def solve_captcha(image_base64):
             return None
     except Exception as e:
         print(f"Error with request: {str(e)}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
 
 
@@ -224,6 +265,7 @@ def solve_captcha_from_file(file_path):
         return captcha_text
     except Exception as e:
         print(f"An error occurred: {str(e)}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
 
 # 1.2 Nhập mã Captcha (tự động)
@@ -258,6 +300,7 @@ def enter_verification_code(driver, captcha_image_path):
             return True
       except Exception as e:
             print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
             return False
 
 # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
@@ -271,7 +314,7 @@ def submit_form(driver, captcha_image_path):
                   submit_button = driver.find_element(By.XPATH, '/html/body/div[2]/div/div[2]/div/div[2]/div[2]/form/div/div[6]/button')
                   submit_button.click()
                   print(f'- Finish submitting the form (Lần {login_attempt + 1})')
-
+                  send_slack_notification(f'Chương trình đang thực hiên login lần {login_attempt + 1}', webhook_url)
                   # Kiểm tra nếu có thông báo lỗi CAPTCHA
                   try:
                         # Chờ thông báo lỗi CAPTCHA
@@ -280,6 +323,7 @@ def submit_form(driver, captcha_image_path):
                         )
                         if error_message:
                               print("[ERROR] Mã xác nhận nhập sai. Đang thử lại...")
+                              send_slack_notification('Login thất bại, đang thử lại', webhook_url)
                               # Lưu và giải mã CAPTCHA mới
                               crawl_img(driver)
                               # enter_verification_code(driver, captcha_image_path) # Tự động
@@ -301,6 +345,7 @@ def submit_form(driver, captcha_image_path):
                         )
                         if tra_cuu_element:
                               print("[INFO] Đăng nhập thành công! Đã vào trang chính.")
+                              send_slack_notification('Chương trình đã login thành công vào trang hoadondientu', webhook_url)
                               if login_attempt == 0:
                                     crawl(driver)  # Lần đầu tiên, gọi hàm crawl
                               else:
@@ -308,6 +353,7 @@ def submit_form(driver, captcha_image_path):
                               return  # Thoát khỏi hàm khi thành công
                   except TimeoutException:
                         print("[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại...")
+                        send_slack_notification('Chương trình chạy thất bại', webhook_url)
                         login_attempt += 1  # Tăng số lần thử đăng nhập
                         continue  # Thử lại nếu không tìm thấy dấu hiệu thành công
 
@@ -315,6 +361,7 @@ def submit_form(driver, captcha_image_path):
                   break
       except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 # 2.1 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha lần đầu thành công
 def crawl(driver):
@@ -374,6 +421,7 @@ def crawl_hoa_don_mua_vao(driver):
 
       except Exception as e:
             print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
       
       # Chọn nút Tìm kiếm 
       tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
@@ -479,10 +527,12 @@ def extract_table_mua_vao_to_csv(driver, output_file):
 
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
-            print(f"- Dữ liệu đã được lưu vào file: {output_file}")
+            print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
+            send_slack_notification(f'Chương trình đã lưu thành công file {unique_output_file}', webhook_url)
 
       except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 # Chụp màn hình hóa đơn chi tiết
 def capture_full_page(driver, save_path):
@@ -518,6 +568,7 @@ def capture_full_page(driver, save_path):
                   driver.save_screenshot(screenshot_path)
                   screenshots.append(screenshot_path)
                   print(f"[DEBUG] Đã chụp tại: {current_scroll}")
+                  
 
                   # Cập nhật vị trí cuộn
                   current_scroll += viewport_height
@@ -537,6 +588,7 @@ def capture_full_page(driver, save_path):
 
             combined_image.save(save_path)
             print(f"[SUCCESS] Ảnh đã lưu tại: {save_path}")
+            send_slack_notification(f'Chương trình đã lưu thành công file {save_path}', webhook_url)
 
             # Xóa ảnh tạm
             for img in screenshots:
@@ -544,6 +596,7 @@ def capture_full_page(driver, save_path):
 
       except Exception as e:
             print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
         
 # 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu tr trong bảng
 def extract_img_hoa_don_mua_vao(driver):
@@ -600,6 +653,7 @@ def extract_img_hoa_don_mua_vao(driver):
 
       except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 
 # 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu    
@@ -630,6 +684,7 @@ def crawl_hoa_don_ban_ra(driver):
 
       except Exception as e:
             print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
       # Chọn nút Tìm kiếm 
       tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[1]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
       tim_kiem.click()                          
@@ -719,10 +774,11 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
 
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
-            print(f"- Dữ liệu đã được lưu vào file: {output_file_ra}")
-
+            print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
+            send_slack_notification(f'Chương trình đã lưu thành công file {unique_output_file}', webhook_url)
       except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 
 # 6.1 xuất từng ảnh ( hóa đơn bán ra chi tiết ) của từng hàng dữ liệu tr trong bảng
@@ -780,6 +836,7 @@ def extract_img_hoa_don_ban_ra(driver):
 
       except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
+            send_slack_notification('Chương trình chạy thất bại', webhook_url)
 
 # Modify the DB_CONFIG to use parsed arguments
 def get_db_config(args):
@@ -867,6 +924,7 @@ def get_latest_files_by_timestamp(csv_pattern, img_pattern):
         
     except Exception as e:
         print(f"Error getting latest files: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None, []
 
 def save_to_database(data, image_paths, loai_hoa_don):
@@ -959,6 +1017,7 @@ def save_to_database(data, image_paths, loai_hoa_don):
                     cur.execute(specific_query, specific_values)
                     
         print(f"Dữ liệu hóa đơn {loai_hoa_don} đã được lưu thành công.")
+        send_slack_notification(f'Chương trình đã đưa dữ liệu {loai_hoa_don} lên database', webhook_url)
     except Exception as e:
         print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
 
@@ -1065,7 +1124,7 @@ def fetch_image_data(table_name):
     except Exception as e:
         print(f"Lỗi chuyển đổi hình ảnh từ bảng {table_name}: {e}")
 
-def ensure_database_exists(args): 
+def ensure_database_exists(args): #Cái này Phúc mới thêm
     try:
         # Kết nối đến database tên "postgres" mặc định để kiểm tra kết nối
         connection = psycopg2.connect(
