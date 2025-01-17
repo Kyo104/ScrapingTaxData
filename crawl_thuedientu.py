@@ -26,24 +26,28 @@ import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập Thuế Điện Tử
-THUEDIENTU_USERNAME = "0101652097-ql"  # Tùy biến
-THUEDIENTU_PASSWORD = "At2025$$$"  # Tùy biến
+THUEDIENTU_USERNAME = "0101652097-ql" 
+THUEDIENTU_PASSWORD = "At2025$$$"  
 
 # API key cho dịch vụ giải captcha
-API_KEY = "#"  # Tùy biến
+API_KEY = "#"  
 
 # Mục thông tin kết nối database
-DB_USER = "postgres"  # Mặc định
-DB_PASSWORD = "123456"  # Tùy biến
+DB_USER = "postgres" 
+DB_PASSWORD = "123456"  
 DB_NAME = "data_thue_dien_tu"
-DB_HOST = "localhost"  # Mặc định
-DB_PORT = "5432"  # Mặc định
+DB_HOST = "localhost"  
+DB_PORT = "5432"  
 
+# URL Webhook Slack mặc định
 WEBHOOK_URL = '#'
+
+print('hello thuedientu')
 # ==============================================================================
+
 def parse_arguments():
-    """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+    
     parser.add_argument('--username', default=THUEDIENTU_USERNAME,
                        help='Tên đăng nhập cho trang web Thuế điện tử')
     parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
@@ -65,9 +69,7 @@ def parse_arguments():
     
     return parser.parse_args()
 
-# Gọi hàm để lấy các giá trị tham số
 args = parse_arguments()
-# Sử dụng giá trị từ args
 webhook_url = args.webhook_url
 print(f"Sử dụng webhook_url: {webhook_url}")
 
@@ -133,8 +135,6 @@ def login_to_thuedientu(driver, username, password):
     select.select_by_value("01")
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
-    
-    
 
 def send_slack_notification(message, webhook_url):
     headers = {
@@ -153,16 +153,10 @@ def send_slack_notification(message, webhook_url):
     except:
           pass
 
-
-
-    
-    
 # Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
     """Tải ảnh CAPTCHA về máy."""
     try:
-        
-
         # Sau đó, chụp lại CAPTCHA mới
         captcha_element = driver.find_element(By.ID, 'safecode')
         captcha_element.screenshot("captcha_image.png")
@@ -206,7 +200,6 @@ def solve_captcha(image_base64):
         print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
-
 
 # Xử lý ảnh CAPTCHA và giải mã
 def solve_captcha_from_file(file_path):
@@ -255,7 +248,8 @@ def enter_verification_code(driver, captcha_image_path):
     except Exception as e:
         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
         return False
-# ---------------------------------------------------------------------------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
 
 # # 1.2 Nhập mã captcha thủ công
 # def enter_verification_code(driver):
@@ -293,7 +287,6 @@ def retry_user_pass_doituong(driver, username, password):
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
     
-    
 # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
 def submit_form(driver, username, password, captcha_image_path):
     """Nhấn nút để hoàn tất đăng nhập."""
@@ -319,13 +312,14 @@ def submit_form(driver, username, password, captcha_image_path):
                     send_slack_notification('Login thất bại, đang thử lại', webhook_url)
                     # Nhập lại các trường thông tin
                     retry_user_pass_doituong(driver, username, password)
-                    #---------------------------------------------------------------------------------------------------------------------------------
+                    
                     # Lưu và giải mã CAPTCHA mới
                     save_captcha_image(driver)
                     
                     # enter_verification_code(driver) # thủ công
                     enter_verification_code(driver, captcha_image_path) # tự đông nhập mã captcha
                     continue  # Thử lại
+                
             except TimeoutException:
                 print("[DEBUG] Mã xác nhận được xác thực thành công")
             
@@ -335,7 +329,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.ID, "ddtabs1"))
                 )
-                # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text "Tra cứu"
+                # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text 
                 tra_cuu_element = driver.find_element(
                     By.XPATH, '//div[@id="ddtabs1"]//ul[@id="tabmenu"]//li//a//span[text()="Tra cứu"]'
                 )
@@ -354,7 +348,6 @@ def submit_form(driver, username, password, captcha_image_path):
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
     
 # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
-# ( Hàm Thêm stt sau mỗi file trùng tên )
 def get_unique_filename(base_filename):
     """
     Tạo tên file duy nhất nếu file đã tồn tại, bằng cách thêm số thứ tự theo định dạng (1), (2),...
@@ -534,7 +527,6 @@ def crawl(driver):
     return df
 
 # 2.2 Lưu và xứ lý dữ liệu vào database PostgreSQL
-# Hàm tạo và kết nối đến database PostgreSQL
 def create_and_connect_to_database(db_name, user, password, host='localhost', port='5432'):
     """Tạo một database mới nếu chưa tồn tại và kết nối đến nó."""
     try:
@@ -562,7 +554,6 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
     except Exception as e:
         print(f"Lỗi khi tạo hoặc kết nối đến database: {e}")
         return None
-
 
 # Hàm đọc file Excel và tải dữ liệu lên PostgreSQL
 def upload_excel_to_postgres(db_config):
@@ -724,8 +715,6 @@ def process_and_create_tables(db_config):
     except Exception as e:
         print(f"Lỗi khi xử lý và tạo bảng: {e}")
 
-
-
 def main():
     """Main function to run the crawler with parsed arguments."""
     # Parse command line arguments
@@ -763,7 +752,6 @@ def main():
             host=db_config['host'],
             port=db_config['port']
         )
-        
         
         if engine and not df.empty:
             # Save to Excel
