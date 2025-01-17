@@ -25,37 +25,46 @@ import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập BHXH
-BHXH_USERNAME = "0101850613" # Tùy biến
-BHXH_PASSWORD = "@ATDT2024" # Tùy biến
+BHXH_USERNAME = "0101850613"
+BHXH_PASSWORD = "@ATDT2024"
+BHXH_MONTH = "1"  # Thêm biến môi trường mới cho tháng
 
 # API key cho dịch vụ giải captcha
-API_KEY = "46285c98b461d74c139593a91910481a"
+API_KEY = "#"
 
 # Mục thông tin kết nối database
-DB_USER = "postgres" # Mặc định
-DB_PASSWORD = "123456" # Tùy biến
+DB_USER = "postgres"
+DB_PASSWORD = "123456"
 DB_NAME = "data_bao_hiem_xa_hoi"
-DB_HOST = "localhost" # Mặc định
-DB_PORT = "5432" # Mặc định
-# URL Webhook Slack mặc định
+DB_HOST = "localhost"
+DB_PORT = "5432"
 WEBHOOK_URL = '#'
-
 # ==============================================================================
+
 print('hello baohiemxahoi')
 
 def parse_arguments():
-    """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='BHXH Data Crawler')
-    parser.add_argument('--username', default=BHXH_USERNAME, required=False,help='Tên đăng nhập cho trang bảo hiểm xã hội')
-    parser.add_argument('--password', default=BHXH_PASSWORD, required=False,help='Mật khẩu cho trang bảo hiểm xã hội')
-    parser.add_argument('--api-key', default=API_KEY, required=False, help='API key từ trang web autocaptcha để giải captcha')
-    parser.add_argument('--db-user', default=DB_USER, required=False, help='PostgreSQL username')
-    parser.add_argument('--db-password', default=DB_PASSWORD, required=False, help='PostgreSQL password')
-    parser.add_argument('--db-name', default=DB_NAME, required=False,help='Database name')
-    parser.add_argument('--db-host', default=DB_HOST, required=False,help='Database host')
-    parser.add_argument('--db-port', default=DB_PORT, required=False,help='Database port')
+    parser.add_argument('--username', default=BHXH_USERNAME, required=False,
+                      help='Tên đăng nhập cho trang bảo hiểm xã hội')
+    parser.add_argument('--password', default=BHXH_PASSWORD, required=False,
+                      help='Mật khẩu cho trang bảo hiểm xã hội')
+    parser.add_argument('--month', default=BHXH_MONTH, required=False,
+                      help='Tháng cần crawl (1-12)')  # Thêm argument mới cho tháng
+    parser.add_argument('--api-key', default=API_KEY, required=False,
+                      help='API key từ trang web autocaptcha để giải captcha')
+    parser.add_argument('--db-user', default=DB_USER, required=False,
+                      help='PostgreSQL username')
+    parser.add_argument('--db-password', default=DB_PASSWORD, required=False,
+                      help='PostgreSQL password')
+    parser.add_argument('--db-name', default=DB_NAME, required=False,
+                      help='Database name')
+    parser.add_argument('--db-host', default=DB_HOST, required=False,
+                      help='Database host')
+    parser.add_argument('--db-port', default=DB_PORT, required=False,
+                      help='Database port')
     parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
-                        help='Liên kết webhook từ Slack')  # Thêm dòng này
+                      help='Liên kết webhook từ Slack')
     return parser.parse_args()
 
 # Gọi hàm để lấy các giá trị tham số
@@ -436,32 +445,37 @@ def download_tab_data(driver, save_path):
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
             return None
 
-def find_months(driver):
-    while True:
-        try:
-            # Nhập số từ 1 đến 12
-            thang = int(input("Nhập số tương ứng với tháng (1 đến 12): "))
-            if 1 <= thang <= 12:
-                break
-            else:
-                print("Vui lòng nhập số từ 1 đến 12.")
-        except ValueError:
-            print("Vui lòng nhập một số hợp lệ.")
-
-    # Xác định ID tương ứng với tháng
-    thang_id = f"mat-option-{thang - 1}"  # ID bắt đầu từ 'mat-option-0' cho tháng 1
-
+def find_months(driver, month):
+    """
+    Chọn tháng từ argument thay vì input người dùng
+    
+    Args:
+        driver: WebDriver instance
+        month (str): Tháng được chọn (1-12)
+    """
     try:
+        # Chuyển đổi tháng sang số nguyên và validate
+        thang = int(month)
+        if not 1 <= thang <= 12:
+            raise ValueError(f"Tháng không hợp lệ: {thang}. Vui lòng chọn từ 1-12")
+
+        # Xác định ID tương ứng với tháng
+        thang_id = f"mat-option-{thang - 1}"
+
         # Nhấn vào phần tử tương ứng
         du_lieu_button = driver.find_element(By.ID, thang_id)
         du_lieu_button.click()
         print(f"- Finish click vào tháng {thang}")
-        send_slack_notification(f"Người dùng đã chọn tháng {thang} để crawl data", webhook_url)
+        send_slack_notification(f"Đã chọn tháng {thang} để crawl data", webhook_url)
         time.sleep(3)
+    except ValueError as e:
+        print(f"Lỗi: {e}")
+        send_slack_notification('Chương trình chạy thất bại - Tháng không hợp lệ', webhook_url)
+        raise
     except Exception as e:
         print(f"Không thể click vào tháng {thang}. Lỗi: {e}")
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
-
+        raise
 
 # Hàm trích xuất dữ liệu và xuất ra CSV:
 def extract_specific_rows(pdf_path, output_csv_path):
@@ -506,8 +520,8 @@ def extract_specific_rows(pdf_path, output_csv_path):
       print(f"[INFO] Dữ liệu đã được lưu tại: {unique_csv_path}")
       send_slack_notification(f"Chương trình đã lưu thành công file {unique_csv_path} ", webhook_url)
         
-# Task 2 Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về máy
-def crawl(driver):
+# Task 2 Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
+def crawl(driver, month):
       # Nhấn nút tra cứu Hồ sơ
       tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')
       tra_cuu_button.click()
@@ -520,14 +534,14 @@ def crawl(driver):
       print('- Finish click Tra cuu C12')
       time.sleep(3)
       
-      # nhấn vào nút sổ các tháng cần tra cứu
+      # Nhấn vào nút sổ các tháng cần tra cứu
       du_lieu_button = driver.find_element(By.CLASS_NAME, 'mat-select-arrow-wrapper')
       du_lieu_button.click()
       print('- Finish click các tháng cần tra cứu')
       time.sleep(3)
       
-      # Gọi đến hàm find_months cần crawl data về 
-      find_months(driver) # Nhập tháng cần lấy data
+      # Gọi đến hàm find_months với tháng từ argument
+      find_months(driver, month)
 
       # nhấn vào nút Tra cứu 
       du_lieu_button = driver.find_element(By.CLASS_NAME, 'mat-raised-button')
@@ -605,13 +619,12 @@ def main():
         login_to_baohiemxahoi(driver, args.username, args.password)
         save_captcha_image(driver)
         
-      #   enter_verification_code(driver)
         enter_verification_code(driver, captcha_image_path)
         
         submit_form(driver, args.username, args.password, captcha_image_path)
         
-        # Crawl data
-        crawl(driver)
+        # Crawl data with month argument
+        crawl(driver, args.month)
         
         # Database connection using parsed arguments
         print("[INFO] Đang kết nối tới database PostgreSQL...")
@@ -628,9 +641,9 @@ def main():
         
     except Exception as e:
         print(f"An error occurred: {e}")
+        send_slack_notification('Chương trình chạy thất bại', webhook_url)
     finally:
         driver.quit()
 
 if __name__ == '__main__':
     main()
-      
