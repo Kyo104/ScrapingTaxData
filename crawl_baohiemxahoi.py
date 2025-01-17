@@ -352,8 +352,8 @@ def submit_form(driver, username, password, captcha_image_path):
 
                         # Lưu và giải mã CAPTCHA mới
                         save_captcha_image(driver)
-                        enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
-                        # enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
+                        # enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
+                        enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
       except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
             send_slack_notification('Chương trình chạy thất bại', webhook_url)
@@ -605,8 +605,8 @@ def main():
         login_to_baohiemxahoi(driver, args.username, args.password)
         save_captcha_image(driver)
         
-        enter_verification_code(driver)
-      #   enter_verification_code(driver, captcha_image_path)
+      #   enter_verification_code(driver)
+        enter_verification_code(driver, captcha_image_path)
         
         submit_form(driver, args.username, args.password, captcha_image_path)
         
