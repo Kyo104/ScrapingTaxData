@@ -1,0 +1,12 @@
+selenium
+pandas
+numpy
+openpyxl
+requests
+Pillow
+pdfplumber
+SQLAlchemy
+cairosvg
+beautifulsoup4
+psycopg2-binary
+lxml
