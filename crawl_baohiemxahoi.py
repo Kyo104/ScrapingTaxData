@@ -126,6 +126,7 @@ def login_to_baohiemxahoi(driver, username, password):
       time.sleep(3)
 
 
+
 def send_slack_notification(message, webhook_url):
     headers = {
         'Content-Type': 'application/json',
@@ -133,13 +134,16 @@ def send_slack_notification(message, webhook_url):
     payload = {
         "text": message  # Nội dung thông báo
     }
+    try:  
+      response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+      
+      if response.status_code == 200:
+            print("Thông báo đã được gửi thành công!")
+      else:
+            print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
+    except:
+          pass
 
-    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
-    
-    if response.status_code == 200:
-        print("Thông báo đã được gửi thành công!")
-    else:
-        print(f"Lỗi khi gửi thông báo: {response.status_code}, {response.text}")
  
 # 1.1 Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
