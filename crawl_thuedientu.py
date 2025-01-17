@@ -47,23 +47,32 @@ def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
     parser.add_argument('--username', default=THUEDIENTU_USERNAME,
+                        required=False,
                        help='Tên đăng nhập cho trang web Thuế điện tử')
     parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
+                        required=False,
                        help='Mật khẩu nhập cho trang web Thuế điện tử')
-    parser.add_argument('--api-key', default=API_KEY,
+    parser.add_argument('--api-key', default=API_KEY, 
+                        required=False,
                        help='API key từ trang web autocaptcha để giải captcha')
-    parser.add_argument('--db-user', default=DB_USER,
+    parser.add_argument('--db-user', default=DB_USER, 
+                        required=False,
                        help='PostgreSQL username')
-    parser.add_argument('--db-password', default=DB_PASSWORD,
+    parser.add_argument('--db-password', default=DB_PASSWORD, 
+                        required=False,
                        help='PostgreSQL password')
-    parser.add_argument('--db-name', default=DB_NAME,
+    parser.add_argument('--db-name', default=DB_NAME, 
+                        required=False,
                        help='Database name')
-    parser.add_argument('--db-host', default=DB_HOST,
+    parser.add_argument('--db-host', default=DB_HOST, 
+                        required=False,
                        help='Database host')
-    parser.add_argument('--db-port', default=DB_PORT,
+    parser.add_argument('--db-port', default=DB_PORT, 
+                        required=False,
                        help='Database port')
-    parser.add_argument('--webhook-url', default=WEBHOOK_URL,
-                        help='Liên kết webhook từ Slack')  # Thêm dòng này
+    parser.add_argument('--webhook-url', default=WEBHOOK_URL, 
+                        required=False,
+                        help='Liên kết webhook từ Slack')  
     
     return parser.parse_args()
 
