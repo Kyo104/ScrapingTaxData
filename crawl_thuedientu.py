@@ -39,7 +39,7 @@ DB_NAME = "data_thue_dien_tu"
 DB_HOST = "localhost"  # Mặc định
 DB_PORT = "5432"  # Mặc định
 
-WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+WEBHOOK_URL = '#'
 # ==============================================================================
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
@@ -777,6 +777,7 @@ def main():
             
     except Exception as e:
         print(f"An error occurred: {e}")
+        send_slack_notification("Chương trình chạy thất bại", webhook_url)
     finally:
         driver.quit()
 
