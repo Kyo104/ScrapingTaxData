@@ -135,9 +135,6 @@ def login_to_thuedientu(driver, username, password):
     time.sleep(2)
     
     
-    
-
-
 
 def send_slack_notification(message, webhook_url):
     headers = {
@@ -157,26 +154,14 @@ def send_slack_notification(message, webhook_url):
           pass
 
 
-# Thay 'YOUR_WEBHOOK_URL' bằng URL Webhook mà bạn đã lấy từ Slack
-# webhook_url = 'https://hooks.slack.com/services/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'
 
-# Gửi thông báo
-
-  
-    
-    
-    
-    
-    
     
     
 # Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
     """Tải ảnh CAPTCHA về máy."""
     try:
-        # refresh_button = driver.find_element(By.CLASS_NAME, 'lam_moi_mxn')
-        # refresh_button.click()
-        # print("Refreshed CAPTCHA")
+        
 
         # Sau đó, chụp lại CAPTCHA mới
         captcha_element = driver.find_element(By.ID, 'safecode')
@@ -244,47 +229,47 @@ def solve_captcha_from_file(file_path):
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
 
-# # 1.2 Nhập mã CAPTCHA tự động
-# def enter_verification_code(driver, captcha_image_path):
-#     """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
-#     try:
-#         # Giải mã CAPTCHA chỉ một lần
-#         captcha_code = solve_captcha_from_file(captcha_image_path)
-#         if not captcha_code:
-#             print("[ERROR] Không thể giải mã CAPTCHA.")
-#             return False
+# 1.2 Nhập mã CAPTCHA tự động
+def enter_verification_code(driver, captcha_image_path):
+    """Giải mã CAPTCHA từ file và tự động nhập vào trường xác nhận."""
+    try:
+        # Giải mã CAPTCHA chỉ một lần
+        captcha_code = solve_captcha_from_file(captcha_image_path)
+        if not captcha_code:
+            print("[ERROR] Không thể giải mã CAPTCHA.")
+            return False
 
-#         # Tìm trường nhập CAPTCHA
-#         verification_code_field = driver.find_element(By.ID, 'vcode')
+        # Tìm trường nhập CAPTCHA
+        verification_code_field = driver.find_element(By.ID, 'vcode')
 
-#         # Nhập mã CAPTCHA vào trường
-#         verification_code_field.clear()
-#         verification_code_field.send_keys(captcha_code)
-#         time.sleep(2)
+        # Nhập mã CAPTCHA vào trường
+        verification_code_field.clear()
+        verification_code_field.send_keys(captcha_code)
+        time.sleep(2)
 
-#         # Log giá trị sau khi nhập để kiểm tra
-#         captcha_value = verification_code_field.get_attribute('value')
-#         print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
+        # Log giá trị sau khi nhập để kiểm tra
+        captcha_value = verification_code_field.get_attribute('value')
+        print(f"[INFO] CAPTCHA đã nhập: {captcha_value}")
 
-#         return True
-#     except Exception as e:
-#         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
-#         return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+        return False
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 
-# 1.2 Nhập mã captcha thủ công
-def enter_verification_code(driver):
-    """Nhập mã xác nhận."""
-    # Yêu cầu người dùng nhập mã xác nhận
-    code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
-    # Tìm và nhập Mã xác nhận
-    verification_code_field = driver.find_element(By.ID, 'vcode')
-    verification_code_field.send_keys(code)
-    print('- Finish keying in verification code')
-    time.sleep(2)
-    # Log giá trị sau khi nhập
-    captcha_value = verification_code_field.get_attribute('value')
-    print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
+# # 1.2 Nhập mã captcha thủ công
+# def enter_verification_code(driver):
+#     """Nhập mã xác nhận."""
+#     # Yêu cầu người dùng nhập mã xác nhận
+#     code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
+#     # Tìm và nhập Mã xác nhận
+#     verification_code_field = driver.find_element(By.ID, 'vcode')
+#     verification_code_field.send_keys(code)
+#     print('- Finish keying in verification code')
+#     time.sleep(2)
+#     # Log giá trị sau khi nhập
+#     captcha_value = verification_code_field.get_attribute('value')
+#     print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
 
 # -----------------------------------------------------------------------------
 
@@ -338,8 +323,8 @@ def submit_form(driver, username, password, captcha_image_path):
                     # Lưu và giải mã CAPTCHA mới
                     save_captcha_image(driver)
                     
-                    enter_verification_code(driver) # thủ công
-                    # enter_verification_code(driver, captcha_image_path) # tự đông nhập mã captcha
+                    # enter_verification_code(driver) # thủ công
+                    enter_verification_code(driver, captcha_image_path) # tự đông nhập mã captcha
                     continue  # Thử lại
             except TimeoutException:
                 print("[DEBUG] Mã xác nhận được xác thực thành công")
@@ -763,7 +748,8 @@ def main():
         # Login process
         login_to_thuedientu(driver, args.username, args.password)
         save_captcha_image(driver)
-        enter_verification_code(driver)  # Manual captcha entry
+        # enter_verification_code(driver)  # Manual captcha entry
+        enter_verification_code(driver, captcha_image_path)  # Manual captcha entry
         submit_form(driver, args.username, args.password, captcha_image_path)
         
         # Data crawling and processing
