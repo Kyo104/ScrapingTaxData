@@ -56,7 +56,7 @@ DB_PORT = "5432"
 WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
 # Thông tin xác thực Google Drive
-SERVICE_ACCOUNT_FILE = 'glassy-tube-448614-m4-1dd0c4573552.json'
+SERVICE_ACCOUNT_FILE = 'hoadondientu.json'
 creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
 service = build('drive', 'v3', credentials=creds)
 
