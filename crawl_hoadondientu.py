@@ -33,6 +33,8 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+from selenium.webdriver.chrome.service import Service
+
 
 
 # =================== BIẾN MÔI TRƯỜNG ===================
@@ -41,7 +43,7 @@ HOADON_USERNAME = ""     # 0101850613 user new    # 0101652097 user cu
 HOADON_PASSWORD = ""      # At2025@@@
 HOADON_COMPANY = ""
 # API key cho dịch vụ giải captcha
-API_KEY = "a715da1ee6e375f9ea709acc6819bce8"
+API_KEY = "909321645f5e407d56fa4d9da73e91e0"
 
 # Mục thông tin kết nối database
 DB_USER = "postgres" 
@@ -51,10 +53,10 @@ DB_HOST = "localhost"
 DB_PORT = "5432" 
 
 # URL Webhook Slack mặc định
-WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
 # Thông tin xác thực Google Drive
-SERVICE_ACCOUNT_FILE = 'hoadondientu-448405-cc30e3f54b9b.json'
+SERVICE_ACCOUNT_FILE = 'glassy-tube-448614-m4-1dd0c4573552.json'
 creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
 service = build('drive', 'v3', credentials=creds)
 
