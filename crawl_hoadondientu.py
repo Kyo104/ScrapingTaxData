@@ -110,8 +110,8 @@ def initialize_driver():
       chrome_options.add_argument("--disable-blink-features=AutomationControlled")  
       chrome_options.add_argument("--disable-extensions")  
       chrome_options.add_argument("--enable-javascript")  
-      driver = webdriver.Chrome(options=chrome_options)
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
+      driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)
       time.sleep(5)
       return driver
 
