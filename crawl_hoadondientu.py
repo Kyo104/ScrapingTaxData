@@ -33,31 +33,31 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
-from selenium.webdriver.chrome.service import Service
-
+from dotenv import load_dotenv
 
 
 # =================== BIẾN MÔI TRƯỜNG ===================
-# Mục thông tin đăng nhập Hóa đơn điện tử
-HOADON_USERNAME = ""     # 0101850613 user new    # 0101652097 user cu 
-HOADON_PASSWORD = ""      # At2025@@@
-HOADON_COMPANY = ""
-# API key cho dịch vụ giải captcha
-API_KEY = "909321645f5e407d56fa4d9da73e91e0"
+load_dotenv()
+# # Mục thông tin đăng nhập Hóa đơn điện tử
+# HOADON_USERNAME = ""     # 0101850613 user new    # 0101652097 user cu 
+# HOADON_PASSWORD = ""      # At2025@@@
+# HOADON_COMPANY = ""
+# # API key cho dịch vụ giải captcha
+# API_KEY = "9cfba26a8feabf37b5051b723964df1a"
 
-# Mục thông tin kết nối database
-DB_USER = "postgres" 
-DB_PASSWORD = "123456" 
-DB_NAME = "data_hoa_don_dien_tu"
-DB_HOST = "localhost" 
-DB_PORT = "5432" 
+# # Mục thông tin kết nối database
+# DB_USER = "postgres" 
+# DB_PASSWORD = "123456" 
+# DB_NAME = "data_hoa_don_dien_tu"
+# DB_HOST = "localhost" 
+# DB_PORT = "5432" 
 
-# URL Webhook Slack mặc định
-WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+# # URL Webhook Slack mặc định
+# WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
-# Thông tin xác thực Google Drive
-SERVICE_ACCOUNT_FILE = 'hoadondientu.json'
-creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
+# # Thông tin xác thực Google Drive
+# SERVICE_ACCOUNT_FILE = 'crawlhoadondientu-5066871284ed.json'
+creds = service_account.Credentials.from_service_account_file(os.getenv('SERVICE_ACCOUNT_FILE'))
 service = build('drive', 'v3', credentials=creds)
 
 print('hello hoadondientu')
@@ -67,25 +67,25 @@ def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Hóa đơn điện tử Data Crawler')
     
-    parser.add_argument('--username', default=HOADON_USERNAME,required=False,
+    parser.add_argument('--username', default=os.getenv('HOADON_USERNAME'),required=False,
                         help='Tên đăng nhập cho trang web Hóa đơn điện tử')
-    parser.add_argument('--password', default=HOADON_PASSWORD, required=False,
+    parser.add_argument('--password', default=os.getenv('HOADON_PASSWORD'), required=False,
                         help='Mật khẩu nhập cho trang web Hóa đơn điện tử')
-    parser.add_argument('--company', default=HOADON_COMPANY, required=False,
+    parser.add_argument('--company', default=os.getenv('HOADON_COMPANY'), required=False,
                         help='Tên công ty cho trang web Hóa đơn điện tử')
-    parser.add_argument('--api-key', default=API_KEY, required=False,
+    parser.add_argument('--api-key', default=os.getenv('API_KEY'), required=False,
                         help='API key từ trang web autocaptcha để giải captcha')
-    parser.add_argument('--db-user', default=DB_USER, required=False,
+    parser.add_argument('--db-user', default=os.getenv('DB_USER'), required=False,
                         help='PostgreSQL username')
-    parser.add_argument('--db-password', default=DB_PASSWORD, required=False,
+    parser.add_argument('--db-password', default=os.getenv('DB_PASSWORD'), required=False,
                         help='PostgreSQL password')
-    parser.add_argument('--db-name', default=DB_NAME, required=False,
+    parser.add_argument('--db-name', default=os.getenv('DB_NAME'), required=False,
                         help='Database name')
-    parser.add_argument('--db-host', default=DB_HOST, required=False,
+    parser.add_argument('--db-host', default=os.getenv('DB_HOST'), required=False,
                         help='Database host')
-    parser.add_argument('--db-port', default=DB_PORT, required=False,
+    parser.add_argument('--db-port', default=os.getenv('DB_PORT'), required=False,
                         help='Database port')
-    parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
+    parser.add_argument('--webhook-url', default=os.getenv('WEBHOOK_URL'), required=False,
                         help='Liên kết webhook từ Slack')  
     
     return parser.parse_args()
@@ -110,8 +110,8 @@ def initialize_driver():
       chrome_options.add_argument("--disable-blink-features=AutomationControlled")  
       chrome_options.add_argument("--disable-extensions")  
       chrome_options.add_argument("--enable-javascript")  
+      driver = webdriver.Chrome(options=chrome_options)
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
-      driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"),options=chrome_options)
       time.sleep(5)
       return driver
 
@@ -226,7 +226,7 @@ def crawl_img(driver):
 def solve_captcha(image_base64):
     url = "https://anticaptcha.top/api/captcha"
     payload = {
-        "apikey": API_KEY,
+        "apikey": os.getenv('API_KEY'),
         "img": image_base64,
         "type": 28  # Loại captcha, có thể cần thay đổi nếu không đúng
     }
@@ -894,6 +894,8 @@ def ensure_database_exists(args):
 CREATE_TABLE_QUERY = """
 CREATE TABLE IF NOT EXISTS invoices (
       id SERIAL PRIMARY KEY,
+      company VARCHAR(255),
+      loai_hoa_don VARCHAR(50),
       mau_so VARCHAR(255),
       ky_hieu VARCHAR(255),
       so_hoa_don VARCHAR(255) UNIQUE,
@@ -908,6 +910,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 
 CREATE TABLE IF NOT EXISTS mua_vao (
       id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+      company VARCHAR(255),
       ky_hieu VARCHAR(255),
       so_hoa_don VARCHAR(255),
       tong_tien NUMERIC,
@@ -919,6 +922,7 @@ CREATE TABLE IF NOT EXISTS mua_vao (
 
 CREATE TABLE IF NOT EXISTS ban_ra (
       id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+      company VARCHAR(255),
       ky_hieu VARCHAR(255),
       so_hoa_don VARCHAR(255),
       tong_tien NUMERIC,
@@ -1116,7 +1120,7 @@ def upload_image_to_drive(file_path, folder_id):
     return image_url
 
 # Hàm lưu dữ liệu vào database
-def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
+def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don, company):
     """
     Save invoice data to the database, including image paths.
     """
@@ -1129,10 +1133,12 @@ def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
                     drive_image_path = drive_image_paths[idx] if idx < len(drive_image_paths) else None
 
                     invoice_query = """
-                    INSERT INTO invoices (mau_so, ky_hieu, so_hoa_don, ngay_lap, tong_tien, trang_thai, image_path, image_drive_path, image_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO invoices (company, loai_hoa_don, mau_so, ky_hieu, so_hoa_don, ngay_lap, tong_tien, trang_thai, image_path, image_drive_path, image_data)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (so_hoa_don) DO UPDATE
-                    SET mau_so = EXCLUDED.mau_so,
+                    SET company = EXCLUDED.company,
+                        loai_hoa_don = EXCLUDED.loai_hoa_don,
+                        mau_so = EXCLUDED.mau_so,
                         ngay_lap = EXCLUDED.ngay_lap,
                         tong_tien = EXCLUDED.tong_tien,
                         trang_thai = EXCLUDED.trang_thai,
@@ -1148,6 +1154,8 @@ def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
                             image_data = img_file.read()
 
                     invoice_values = (
+                        company,
+                        loai_hoa_don,
                         row.get('mau_so'),
                         row.get('ky_hieu'),
                         row.get('so_hoa_don'),
@@ -1165,19 +1173,21 @@ def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
                     # Handle specific invoice type tables
                     if loai_hoa_don == "mua_vao":
                         specific_query = """
-                        INSERT INTO mua_vao (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_ban)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO mua_vao (id, company, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_ban)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
-                        SET ky_hieu = EXCLUDED.ky_hieu,
-                            so_hoa_don = EXCLUDED.so_hoa_don,
-                            tong_tien = EXCLUDED.tong_tien,
-                            image_path = EXCLUDED.image_path,
-                            image_drive_path = EXCLUDED.image_drive_path,
-                            image_data = EXCLUDED.image_data,
-                            thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban;
+                        SET company = EXCLUDED.company,
+                              ky_hieu = EXCLUDED.ky_hieu,
+                              so_hoa_don = EXCLUDED.so_hoa_don,
+                              tong_tien = EXCLUDED.tong_tien,
+                              image_path = EXCLUDED.image_path,
+                              image_drive_path = EXCLUDED.image_drive_path,
+                              image_data = EXCLUDED.image_data,
+                              thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban;
                         """
                         specific_values = (
                             invoice_id,
+                            company,
                             row.get('ky_hieu'),
                             row.get('so_hoa_don'),
                             convert_to_numeric(row.get('tong_tien')),
@@ -1188,19 +1198,21 @@ def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
                         )
                     else:  # ban_ra
                         specific_query = """
-                        INSERT INTO ban_ra (id, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_mua)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO ban_ra (id, company, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_mua)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
-                        SET ky_hieu = EXCLUDED.ky_hieu,
-                            so_hoa_don = EXCLUDED.so_hoa_don,
-                            tong_tien = EXCLUDED.tong_tien,
-                            image_path = EXCLUDED.image_path,
-                            image_drive_path = EXCLUDED.image_drive_path,
-                            image_data = EXCLUDED.image_data,
-                            thong_tin_nguoi_mua = EXCLUDED.thong_tin_nguoi_mua;
+                        SET company = EXCLUDED.company,
+                              ky_hieu = EXCLUDED.ky_hieu,
+                              so_hoa_don = EXCLUDED.so_hoa_don,
+                              tong_tien = EXCLUDED.tong_tien,
+                              image_path = EXCLUDED.image_path,
+                              image_drive_path = EXCLUDED.image_drive_path,
+                              image_data = EXCLUDED.image_data,
+                              thong_tin_nguoi_mua = EXCLUDED.thong_tin_nguoi_mua;
                         """
                         specific_values = (
                             invoice_id,
+                            company,
                             row.get('ky_hieu'),
                             row.get('so_hoa_don'),
                             convert_to_numeric(row.get('tong_tien')),
@@ -1219,7 +1231,7 @@ def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don):
 
 # Hàm tạo bảng company_information
 def create_company_information_table():
-    create_table_query = """
+    query = """
     CREATE TABLE IF NOT EXISTS company_information (
         id SERIAL PRIMARY KEY,
         company VARCHAR(255) NOT NULL,
@@ -1230,11 +1242,43 @@ def create_company_information_table():
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
-                cur.execute(create_table_query)
+                cur.execute(query)
                 conn.commit()
                 print("Table 'company_information' created successfully.")
     except Exception as e:
         print(f"Error creating table 'company_information': {e}")
+
+def add_company(company, username, password):
+    query = """
+    INSERT INTO company_information (company, hoadon_username, hoadon_password)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (hoadon_username) DO NOTHING;  -- Không thêm nếu username đã tồn tại
+    """
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (company, username, password))
+                conn.commit()
+                print(f"Thêm công ty '{company}' thành công!")
+    except Exception as e:
+        print(f"Lỗi khi thêm công ty '{company}': {e}")
+
+def add_company_interactive():
+    """Hàm để người dùng nhập thông tin công ty từ terminal."""
+    print("Nhập thông tin công ty:")
+    try:
+        company = input("Tên công ty: ").strip()
+        username = input("Hóa đơn username: ").strip()
+        password = input("Hóa đơn password: ").strip()
+
+        if not company or not username or not password:
+            print("Vui lòng nhập đầy đủ thông tin.")
+            return
+
+        # Gọi hàm add_company để lưu vào cơ sở dữ liệu
+        add_company(company, username, password)
+    except Exception as e:
+        print(f"Lỗi khi thêm công ty: {e}")
         
 # Hàm nhập dữ liệu từ file Excel
 def import_company_information_from_excel(excel_file):
@@ -1264,13 +1308,13 @@ def import_company_information_from_excel(excel_file):
 
 # Hàm lấy dữ liệu từ bảng company_information
 def fetch_company_information():
+    query = "SELECT company, hoadon_username, hoadon_password FROM company_information;"
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute("SELECT company, hoadon_username, hoadon_password FROM company_information")
+                cur.execute(query)
                 rows = cur.fetchall()
-                print(rows)
-                return rows
+                return rows 
     except Exception as e:
         print(f"Error fetching data from 'company_information': {e}")
         return []
@@ -1335,7 +1379,7 @@ def main_db_workflow(company, username, password):
                 print(f"Uploaded image to Drive: {drive_image_path}")
 
         # Lưu dữ liệu vào cơ sở dữ liệu
-        save_to_database(data, mua_vao_images, drive_image_paths, "mua_vao")
+        save_to_database(data, mua_vao_images, drive_image_paths, "mua_vao", company)
         print(f"Processed mua vao data from {mua_vao_csv}")
 
     # Process ban ra
@@ -1364,7 +1408,7 @@ def main_db_workflow(company, username, password):
                 print(f"Uploaded image to Drive: {drive_image_path}")
 
         # Lưu dữ liệu vào cơ sở dữ liệu
-        save_to_database(data, ban_ra_images, drive_image_paths, "ban_ra")
+        save_to_database(data, ban_ra_images, drive_image_paths, "ban_ra", company)
         print(f"Processed ban ra data from {ban_ra_csv}")
 
     # Fetch and verify saved images
@@ -1418,38 +1462,46 @@ def main():
       output_file = "hoa_don_mua_vao.csv"
       output_file_ra = "hoa_don_ban_ra.csv"
       captcha_image_path = "captcha_image.svg"
-      excel_file_path = 'company_information.xlsx'
+      # excel_file_path = 'company_information.xlsx'
       
 
       try:
             # Tạo bảng và nhập dữ liệu từ Excel
             create_company_information_table()
-            import_company_information_from_excel(excel_file_path)
+            # add_company_interactive()
+            # import_company_information_from_excel(excel_file_path)
             
-            try:
-                  df = pd.read_excel(excel_file_path)
-            except Exception as e:
-                  print(f"Lỗi khi đọc file Excel: {e}")
-                  return None
+            # try:
+            #       df = pd.read_excel(excel_file_path)
+            # except Exception as e:
+            #       print(f"Lỗi khi đọc file Excel: {e}")
+            #       return None
 
-            if df.empty:
-                  print("Không có dữ liệu trong bảng company_information. Chương trình kết thúc.")
-            else:
-                  companies = df["company"].tolist()
-                  total_companies = len(companies)
-                  print(f"Tổng số công ty cần xử lý: {total_companies}")
+            # if df.empty:
+            #       print("Không có dữ liệu trong bảng company_information. Chương trình kết thúc.")
+            # else:
+            #       companies = df["company"].tolist()
+            #       total_companies = len(companies)
+            #       print(f"Tổng số công ty cần xử lý: {total_companies}")
                   
             # first_time = True 
+
+            # add_company("Công ty A", "0101652097", "At2025@@@") #Thêm công ty vào bảng
+
             # Lấy danh sách công ty từ database
             company_data_list = fetch_company_information()
+            if not company_data_list:
+                  print("Không có công ty nào trong bảng 'company_information'. Chương trình kết thúc.")
+                  return
+            
             # Xử lý từng công ty
             for idx, company_data in enumerate(company_data_list, start=1):
                   company, username, password = (
-                  company_data["company"],
-                  company_data["hoadon_username"],
-                  company_data["hoadon_password"],
+                        company_data["company"],
+                        company_data["hoadon_username"],
+                        company_data["hoadon_password"],
                   )
-                  print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
+                  print(f"Đang xử lý công ty thứ {idx}: {company}")
 
                   # Mở tab mới
                   driver.execute_script("window.open('');")
@@ -1464,7 +1516,8 @@ def main():
                               driver, company, username, password,
                               captcha_image_path, output_file, output_file_ra
                         )
-                        print(f"Hoàn thành xử lý công ty {idx}/{total_companies}.")
+                        # print(f"Hoàn thành xử lý công ty {idx}/{total_companies}.")
+                        print(f"Hoàn thành xử lý công ty {idx}/{company}.")
                   except Exception as e:
                         print(f"Lỗi khi xử lý công ty {company}: {e}")
                         send_slack_notification(f"[FAILED] Lỗi khi xử lý công ty {company}", webhook_url)
