@@ -26,24 +26,29 @@ import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
 # Mục thông tin đăng nhập Thuế Điện Tử
-THUEDIENTU_USERNAME = "0101652097-ql"  # Tùy biến
-THUEDIENTU_PASSWORD = "At2025$$$"  # Tùy biến
+THUEDIENTU_USERNAME = "" 
+THUEDIENTU_PASSWORD = "" 
+THUEDIENTU_COMPANY = "" 
 
 # API key cho dịch vụ giải captcha
-API_KEY = "#"  # Tùy biến
+API_KEY = "4b9744cc99fd188fb23d1440fbc45639"  
 
 # Mục thông tin kết nối database
-DB_USER = "postgres"  # Mặc định
-DB_PASSWORD = "123456"  # Tùy biến
-DB_NAME = "data_thue_dien_tu"
-DB_HOST = "localhost"  # Mặc định
-DB_PORT = "5432"  # Mặc định
+DB_USER = "postgres" 
+DB_PASSWORD = "123456"  
+DB_NAME = "crawling_data"
+DB_HOST = "localhost"  
+DB_PORT = "5432"  
 
-WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+# URL Webhook Slack mặc định
+WEBHOOK_URL = '#'
+
+print('hello thuedientu')
 # ==============================================================================
+
 def parse_arguments():
-    """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+    
     parser.add_argument('--username', default=THUEDIENTU_USERNAME,
                        help='Tên đăng nhập cho trang web Thuế điện tử')
     parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
@@ -65,9 +70,7 @@ def parse_arguments():
     
     return parser.parse_args()
 
-# Gọi hàm để lấy các giá trị tham số
 args = parse_arguments()
-# Sử dụng giá trị từ args
 webhook_url = args.webhook_url
 print(f"Sử dụng webhook_url: {webhook_url}")
 
@@ -77,7 +80,7 @@ def initialize_driver():
     chrome_options = Options()
     chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--headless=new") # for Chrome >= 109
+    #chrome_options.add_argument("--headless=new") # for Chrome >= 109
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--force-device-scale-factor=1")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
@@ -89,7 +92,7 @@ def initialize_driver():
     return driver
 
 # 1.1 Nhập username và password vào trang web 'thuedientu'
-def login_to_thuedientu(driver, username, password):
+def login_to_thuedientu(driver, username, password, company):
     """Đăng nhập vào trang web 'thuedientu'."""
     url = 'https://thuedientu.gdt.gov.vn/etaxnnt/Request'
     driver.get(url)
@@ -133,8 +136,6 @@ def login_to_thuedientu(driver, username, password):
     select.select_by_value("01")
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
-    
-    
 
 def send_slack_notification(message, webhook_url):
     headers = {
@@ -153,16 +154,10 @@ def send_slack_notification(message, webhook_url):
     except:
           pass
 
-
-
-    
-    
 # Tải ảnh CAPTCHA về máy
 def save_captcha_image(driver):
     """Tải ảnh CAPTCHA về máy."""
     try:
-        
-
         # Sau đó, chụp lại CAPTCHA mới
         captcha_element = driver.find_element(By.ID, 'safecode')
         captcha_element.screenshot("captcha_image.png")
@@ -206,7 +201,6 @@ def solve_captcha(image_base64):
         print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
         return None
-
 
 # Xử lý ảnh CAPTCHA và giải mã
 def solve_captcha_from_file(file_path):
@@ -255,7 +249,8 @@ def enter_verification_code(driver, captcha_image_path):
     except Exception as e:
         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
         return False
-# ---------------------------------------------------------------------------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
 
 # # 1.2 Nhập mã captcha thủ công
 # def enter_verification_code(driver):
@@ -293,7 +288,6 @@ def retry_user_pass_doituong(driver, username, password):
     print('- Finish keying in Doi_Tuong')
     time.sleep(2)
     
-    
 # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
 def submit_form(driver, username, password, captcha_image_path):
     """Nhấn nút để hoàn tất đăng nhập."""
@@ -319,13 +313,14 @@ def submit_form(driver, username, password, captcha_image_path):
                     send_slack_notification('Login thất bại, đang thử lại', webhook_url)
                     # Nhập lại các trường thông tin
                     retry_user_pass_doituong(driver, username, password)
-                    #---------------------------------------------------------------------------------------------------------------------------------
+                    
                     # Lưu và giải mã CAPTCHA mới
                     save_captcha_image(driver)
                     
                     # enter_verification_code(driver) # thủ công
                     enter_verification_code(driver, captcha_image_path) # tự đông nhập mã captcha
                     continue  # Thử lại
+                
             except TimeoutException:
                 print("[DEBUG] Mã xác nhận được xác thực thành công")
             
@@ -335,7 +330,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.ID, "ddtabs1"))
                 )
-                # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text "Tra cứu"
+                # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text 
                 tra_cuu_element = driver.find_element(
                     By.XPATH, '//div[@id="ddtabs1"]//ul[@id="tabmenu"]//li//a//span[text()="Tra cứu"]'
                 )
@@ -354,7 +349,6 @@ def submit_form(driver, username, password, captcha_image_path):
         send_slack_notification('Chương trình chạy thất bại', webhook_url)
     
 # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
-# ( Hàm Thêm stt sau mỗi file trùng tên )
 def get_unique_filename(base_filename):
     """
     Tạo tên file duy nhất nếu file đã tồn tại, bằng cách thêm số thứ tự theo định dạng (1), (2),...
@@ -534,7 +528,6 @@ def crawl(driver):
     return df
 
 # 2.2 Lưu và xứ lý dữ liệu vào database PostgreSQL
-# Hàm tạo và kết nối đến database PostgreSQL
 def create_and_connect_to_database(db_name, user, password, host='localhost', port='5432'):
     """Tạo một database mới nếu chưa tồn tại và kết nối đến nó."""
     try:
@@ -563,166 +556,140 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
         print(f"Lỗi khi tạo hoặc kết nối đến database: {e}")
         return None
 
-
 # Hàm đọc file Excel và tải dữ liệu lên PostgreSQL
-def upload_excel_to_postgres(db_config):
+def upload_excel_to_postgres(db_config, company):
     try:
         # Tìm tất cả các file Excel với pattern data_thue_dien_tu*.xlsx
-        list_of_files = glob.glob("./data_thue_dien_tu*.xlsx")
+        list_of_files = glob.glob(f"./data_thue_dien_tu*.xlsx")
         if not list_of_files:
             print("Không tìm thấy file Excel nào trong thư mục.")
             return
 
         # Sắp xếp files theo thời gian tạo, lấy file mới nhất
         latest_file = max(list_of_files, key=os.path.getctime)
-        
-        # Kiểm tra xem file có phải là phiên bản được đánh số không
-        base_name = "data_thue_dien_tu.xlsx"
-        if latest_file != f"./{base_name}":
-            # File có số trong ngoặc, ví dụ: data_thue_dien_tu (1).xlsx
-            print(f"Sử dụng file mới nhất: {latest_file}")
-        else:
-            print(f"Sử dụng file gốc: {latest_file}")
+        print(f"Sử dụng file mới nhất: {latest_file}")
 
         # Kết nối tới PostgreSQL
         engine = create_engine(
             f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
         )
-        connection = engine.connect()
-
+        
         # Đọc file Excel mới nhất
         data = pd.read_excel(latest_file)
 
-        # Xử lý dữ liệu rỗng (thay None hoặc NaN bằng "")
-        data = data.fillna("")
+        # Đổi tên cột sang định dạng chuẩn
+        data.columns = [
+            "stt", "thu_tu_thanh_toan", "co_quan_thu", "loai_nghia_vu", 
+            "so_tham_chieu", "id_khoan_phai_nop", "so_quyet_dinh", 
+            "ky_thue", "ngay_quyet_dinh", "tieu_muc", "so_tien", 
+            "loai_tien", "ma_chuong", "dbhc", "han_nop_ngay", 
+            "so_tien_da_nop", "trang_thai", "tinh_chat_khoan_nop"
+        ]
 
-        # Tạo timestamp cho version control
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Thay thế NaN bằng chuỗi rỗng
+        data.fillna('', inplace=True)
+
+        # Thêm cột mới
+        data['created_at'] = pd.to_datetime('now')
+        data['company'] = company
         
-        # Tạo tên bảng với timestamp
-        table_name = f'tax_data_{timestamp}'
-
-        # Tải dữ liệu lên PostgreSQL vào bảng mới với timestamp
-        data.to_sql(table_name, con=engine, if_exists='replace', index=False)
-        print(f"Đã tải dữ liệu lên bảng {table_name}")
-
-        # Thêm cột tax_data_id làm khóa chính (serial)
+        # Tạo bảng data_thuedt nếu chưa tồn tại
         with engine.begin() as conn:
-            conn.execute(text(f"""ALTER TABLE {table_name} ADD COLUMN tax_data_id SERIAL PRIMARY KEY;"""))
-        print(f"Đã thêm cột tax_data_id làm khóa chính cho bảng {table_name}")
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS data_thuedt (
+                    id SERIAL PRIMARY KEY,
+                    stt VARCHAR,
+                    thu_tu_thanh_toan VARCHAR,
+                    co_quan_thu VARCHAR,
+                    loai_nghia_vu VARCHAR,
+                    so_tham_chieu VARCHAR,
+                    id_khoan_phai_nop VARCHAR,
+                    so_quyet_dinh VARCHAR,
+                    ky_thue VARCHAR,
+                    ngay_quyet_dinh VARCHAR,
+                    tieu_muc VARCHAR,
+                    so_tien VARCHAR,
+                    loai_tien VARCHAR,
+                    ma_chuong VARCHAR,
+                    dbhc VARCHAR,
+                    han_nop_ngay VARCHAR,
+                    so_tien_da_nop VARCHAR,
+                    trang_thai VARCHAR,
+                    tinh_chat_khoan_nop VARCHAR,
+                    created_at TIMESTAMP,
+                    company VARCHAR
+                );
+            """))
+            print("Đã kiểm tra và tạo bảng data_thuedt trong database.")
 
-        # Lưu thông tin về file nguồn vào bảng metadata
-        metadata_query = f"""
-        CREATE TABLE IF NOT EXISTS tax_data_metadata (
-            id SERIAL PRIMARY KEY,
-            table_name VARCHAR(100),
-            source_file VARCHAR(255),
-            upload_timestamp TIMESTAMP,
-            is_latest BOOLEAN
-        );
-        
-        -- Cập nhật tất cả các bản ghi cũ thành không phải latest
-        UPDATE tax_data_metadata SET is_latest = FALSE;
-        
-        -- Thêm bản ghi mới
-        INSERT INTO tax_data_metadata (table_name, source_file, upload_timestamp, is_latest)
-        VALUES ('{table_name}', '{os.path.basename(latest_file)}', CURRENT_TIMESTAMP, TRUE);
-        """
-        
+            # Kiểm tra và tạo khóa chính, khóa ngoại
+            try:
+                conn.execute(text("""
+                    ALTER TABLE data_thuedt
+                    ADD CONSTRAINT fk_company FOREIGN KEY (company) 
+                    REFERENCES company_information (company) ON DELETE CASCADE;
+                """))
+                print("Đã tạo khóa ngoại company trong bảng data_thuedt.")
+            except Exception as e:
+                if "already exists" in str(e):
+                    print("Khóa ngoại company đã tồn tại trong bảng data_thuedt.")
+                else:
+                    raise e
+
+        # Lưu tất cả dữ liệu vào bảng
         with engine.begin() as conn:
-            conn.execute(text(metadata_query))
-        
-        print(f"Đã cập nhật metadata cho {table_name}")
+            for _, row in data.iterrows():
+                row_data = row.to_dict()
+                conn.execute(text("""
+                    INSERT INTO data_thuedt (stt, thu_tu_thanh_toan, co_quan_thu, loai_nghia_vu,
+                                              so_tham_chieu, id_khoan_phai_nop, so_quyet_dinh,
+                                              ky_thue, ngay_quyet_dinh, tieu_muc, so_tien,
+                                              loai_tien, ma_chuong, dbhc, han_nop_ngay,
+                                              so_tien_da_nop, trang_thai, tinh_chat_khoan_nop,
+                                              created_at, company)
+                    VALUES (:stt, :thu_tu_thanh_toan, :co_quan_thu, :loai_nghia_vu,
+                            :so_tham_chieu, :id_khoan_phai_nop, :so_quyet_dinh,
+                            :ky_thue, :ngay_quyet_dinh, :tieu_muc, :so_tien,
+                            :loai_tien, :ma_chuong, :dbhc, :han_nop_ngay,
+                            :so_tien_da_nop, :trang_thai, :tinh_chat_khoan_nop,
+                            :created_at, :company)
+                """), row_data)
+
+        print("Đã tải dữ liệu vào bảng data_thuedt thành công.")
 
     except Exception as e:
         print(f"Lỗi khi tải dữ liệu lên PostgreSQL: {e}")
         raise e
 
-def process_and_create_tables(db_config):
+
+
+def set_environment_variables(company, username, password):
+    """Thiết lập các biến môi trường từ thông tin đăng nhập."""
+    os.environ['THUEDIENTU_COMPANY'] = company
+    os.environ['THUEDIENTU_USERNAME'] = username
+    os.environ['THUEDIENTU_PASSWORD'] = password
+    print(f"Đã thiết lập biến môi trường: THUEDIENTU_COMPANY={company}, THUEDIENTU_USERNAME={username}, THUEDIENTU_PASSWORD={username}")
+
+
+# Hàm lấy dữ liệu từ bảng company_information
+def fetch_company_information(engine):
+    query = text("SELECT company, thue_username, thue_password FROM company_information;")
     try:
-        # Tạo engine kết nối đến cơ sở dữ liệu
-        engine = create_engine(
-            f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-        )
-        
-        # Lấy tên bảng mới nhất từ metadata
-        with engine.connect() as connection:
-            result = connection.execute(text("""
-                SELECT table_name 
-                FROM tax_data_metadata 
-                WHERE is_latest = TRUE 
-                ORDER BY upload_timestamp DESC 
-                LIMIT 1
-            """))
-            latest_table = result.fetchone()
-            
-            if not latest_table:
-                raise Exception("Không tìm thấy bảng dữ liệu mới nhất trong metadata")
-                
-            source_table = latest_table[0]
-            print(f"Đang xử lý dữ liệu từ bảng: {source_table}")
-            
-            # Đọc dữ liệu từ bảng nguồn
-            tax_data = pd.read_sql(f"SELECT * FROM {source_table}", con=engine)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
 
-        # Duyệt lần 1: Lọc và tạo bảng phụ với mục A, B, C
-        sections = ['A', 'B', 'C']
-        for i, section in enumerate(sections):
-            # Xác định phạm vi dữ liệu cho từng mục
-            start_index = tax_data[tax_data['STT'].str.startswith(f"{section}.")].index[0]
-            if i < len(sections) - 1:
-                next_section = sections[i + 1]
-                end_index = tax_data[tax_data['STT'].str.startswith(f"{next_section}.")].index[0]
-                section_data = tax_data.iloc[start_index:end_index]
-            else:
-                section_data = tax_data.iloc[start_index:]
-            
-            section_table_name = f"{source_table}_{section.lower()}"
-            
-            # Lưu dữ liệu của từng mục vào bảng phụ
-            section_data.to_sql(section_table_name, con=engine, if_exists='replace', index=False)
-            with engine.begin() as conn:
-                conn.execute(text(f"""
-                    ALTER TABLE {section_table_name} ADD COLUMN {section_table_name}_id SERIAL PRIMARY KEY;
-                    ALTER TABLE {section_table_name} ADD CONSTRAINT fk_{source_table} FOREIGN KEY ({section_table_name}_id) REFERENCES {source_table} (tax_data_id);
-                """))
-            print(f"Đã tạo bảng phụ {section_table_name} với {len(section_data)} hàng.")
-
-        # Duyệt lần 2: Lọc và tạo bảng con từ từng bảng phụ
-        for section in sections:
-            section_table_name = f"{source_table}_{section.lower()}"
-            section_data = pd.read_sql(f"SELECT * FROM {section_table_name}", con=engine)
-            subsections = section_data['STT'][section_data['STT'].str.match(r'^(I|II|III|IV|V|VI|VII|VIII|IX|X)\..*')].tolist()
-            
-            if not subsections:
-                print(f"Bảng phụ {section_table_name} không có mục con, bỏ qua.")
-                continue
-            
-            for j, subsection in enumerate(subsections):
-                start_index = section_data[section_data['STT'] == subsection].index[0]
-                if j < len(subsections) - 1:
-                    end_index = section_data[section_data['STT'] == subsections[j + 1]].index[0]
-                    subsection_data = section_data.iloc[start_index:end_index]
-                else:
-                    subsection_data = section_data.iloc[start_index:]
-                
-                subsection_table_name = f"{section_table_name}_{subsection.split('.')[0].lower()}"
-                
-                # Lưu dữ liệu của từng mục con vào bảng con
-                subsection_data.to_sql(subsection_table_name, con=engine, if_exists='replace', index=False)
-                with engine.begin() as conn:
-                    conn.execute(text(f"""
-                        ALTER TABLE {subsection_table_name} ADD COLUMN {subsection_table_name}_id SERIAL PRIMARY KEY;
-                        ALTER TABLE {subsection_table_name} ADD CONSTRAINT fk_{section_table_name} FOREIGN KEY ({section_table_name}_id) REFERENCES {section_table_name} ({section_table_name}_id);
-                        ALTER TABLE {subsection_table_name} ADD CONSTRAINT fk_{source_table} FOREIGN KEY ({subsection_table_name}_id) REFERENCES {source_table} (tax_data_id);
-                    """))
-                print(f"Đã tạo bảng con {subsection_table_name} với {len(subsection_data)} hàng.")
-        
-        print("Hoàn thành xử lý và tạo các bảng.")
-    
+            # Lọc các công ty không có thue_username hoặc thue_password
+            filtered_rows = [
+                {"company": row[0], "thue_username": row[1], "thue_password": row[2]} 
+                for row in rows 
+                if row[1] and row[2] 
+            ]
+           
+            return filtered_rows 
     except Exception as e:
-        print(f"Lỗi khi xử lý và tạo bảng: {e}")
+        print(f"Error fetching data from 'company_information': {e}")
+        return []
 
 
 
@@ -739,46 +706,93 @@ def main():
         'password': args.db_password,
         'database': args.db_name
     }
+
+    engine = create_and_connect_to_database(args.db_name, args.db_user, args.db_password, args.db_host, args.db_port)
+    
+    # Lấy danh sách công ty từ cơ sở dữ liệu
+    company_data_list = fetch_company_information(engine)
+    
+    # Kiểm tra xem có dữ liệu công ty hay không
+    if not company_data_list:
+        print("Không có công ty nào để xử lý. Kết thúc chương trình.")
+        return
+
+    total_companies = len(company_data_list)
+    print(f"\nTổng số công ty cần xử lý: {total_companies}")
     
     # Initialize webdriver
     driver = initialize_driver()
     captcha_image_path = "captcha_image.png"
-    
-    try:
-        # Login process
-        login_to_thuedientu(driver, args.username, args.password)
-        save_captcha_image(driver)
-        # enter_verification_code(driver)  # Manual captcha entry
-        enter_verification_code(driver, captcha_image_path)  # Manual captcha entry
-        submit_form(driver, args.username, args.password, captcha_image_path)
-        
-        # Data crawling and processing
-        df = crawl(driver)
 
-        # Create and connect to database
-        engine = create_and_connect_to_database(
-            db_name=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password'],
-            host=db_config['host'],
-            port=db_config['port']
+    successful_companies = []
+    failed_companies = []
+
+    # Xử lý từng công ty
+    for idx, company_data in enumerate(company_data_list, start=1):
+        company, username, password = (
+            company_data["company"],
+            company_data["thue_username"],
+            company_data["thue_password"],
         )
         
+        # Kiểm tra tính hợp lệ của dữ liệu công ty
+        if not (company and username and password):
+            print(f"Dữ liệu công ty không hợp lệ cho công ty thứ {idx}. Kết thúc chương trình.")
+            driver.quit()
+            return
         
-        if engine and not df.empty:
-            # Save to Excel
-            file_path = 'data_thue_dien_tu.xlsx'
-            unique_file_name = save_to_excel_with_style(df, file_path)
-            adjust_column_width(unique_file_name)
-            
-            # Upload to database
-            upload_excel_to_postgres(db_config)
-            process_and_create_tables(db_config)
-            
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    finally:
-        driver.quit()
+        print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
+
+        try:
+            # Mở tab mới
+            driver.execute_script("window.open('');")
+            new_tab = driver.window_handles[-1]
+            driver.switch_to.window(new_tab)
+
+            # Đăng nhập
+            login_to_thuedientu(driver, username, password, company)
+            save_captcha_image(driver)
+            enter_verification_code(driver, captcha_image_path)
+            submit_form(driver, username, password, captcha_image_path)
+
+            # Crawling dữ liệu
+            df = crawl(driver)
+
+            if engine and not df.empty:
+                # Lưu vào file Excel
+                file_path = f'data_thue_dien_tu.xlsx'
+                unique_file_name = save_to_excel_with_style(df, file_path)
+                adjust_column_width(unique_file_name)
+
+                # Tải dữ liệu lên cơ sở dữ liệu
+                upload_excel_to_postgres(db_config, company)
+                successful_companies.append(company)  # Thêm vào danh sách thành công
+            else:
+                failed_companies.append(company)  # Thêm vào danh sách thất bại
+
+        except Exception as e:
+            print(f"Đã xảy ra lỗi: {e}")
+            failed_companies.append(company)  # Thêm vào danh sách thất bại
+            send_slack_notification(f"Lỗi khi xử lý công ty {company}: {e}", args.webhook_url)
+
+    # Đóng tất cả các tab sau khi hoàn tất
+    driver.quit()  # Đóng WebDriver sau khi xử lý tất cả công ty
+
+    # In báo cáo tổng kết
+    print("=========== Báo cáo tổng kết ===========")
+    print(f"Số công ty cần chạy: {total_companies}")
+    print(f"Số công ty chạy thành công: {len(successful_companies)}")
+    print(f"Số công ty chạy thất bại: {len(failed_companies)}")
+
+    if successful_companies:
+        print("- Công ty chạy thành công:")
+        for company in successful_companies:
+            print(f" {company}")
+
+    if failed_companies:
+        print("- Công ty chạy thất bại:")
+        for company in failed_companies:
+            print(f" {company}")
 
 if __name__ == '__main__':
     main()
