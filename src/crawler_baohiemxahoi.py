@@ -228,12 +228,7 @@ class crawler_baohiemxahoi(base_crawler):
                 return response_data["captcha"]
             else:
                 print(f"[ERROR] API response indicates failure: {response_data}")
-                self.send_slack_notification(
-                    f"[ERROR] Workflow crawling data baohiemxahoi failed {
-                        response_data
-                    }",
-                    self.webhook_url,
-                )
+                self.send_slack_notification(f"[ERROR] Workflow crawling data baohiemxahoi failed {response_data}",self.webhook_url)
                 return None
         except Exception as e:
             print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
