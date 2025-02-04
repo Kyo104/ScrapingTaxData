@@ -792,8 +792,9 @@ class crawler_baohiemxahoi(base_crawler):
         self.send_slack_notification(f"[INFO] Tổng số công ty có trong database: {total_companies}",self.webhook_url)
         print(f"Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}")
         self.send_slack_notification(f"[SUCCESS] Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}",self.webhook_url)
+        
         print(f"Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}")
-        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] > 0)}",self.webhook_url)
+        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}",self.webhook_url)
         for company, results in company_results.items():
             print(f"Công ty {company}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
             self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url)
