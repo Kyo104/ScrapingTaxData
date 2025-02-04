@@ -40,9 +40,9 @@ class crawler_baohiemxahoi(base_crawler):
 
         self.parser = argparse.ArgumentParser(description="BHXH Data Crawler")
         
-        self.parser.add_argument("--username", default="", required=False, help="Tên đăng nhập cho trang bảo hiểm xã hội")
-        self.parser.add_argument("--password", default="", required=False, help="Mật khẩu cho trang bảo hiểm xã hội")
-        self.parser.add_argument("--company", default="", required=False, help="Tên công ty cho trang web Bảo hiểm xã hội")
+        # self.parser.add_argument("--username", default="", required=False, help="Tên đăng nhập cho trang bảo hiểm xã hội")
+        # self.parser.add_argument("--password", default="", required=False, help="Mật khẩu cho trang bảo hiểm xã hội")
+        # self.parser.add_argument("--company", default="", required=False, help="Tên công ty cho trang web Bảo hiểm xã hội")
         self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
         self.parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
         return self.parser.parse_args()
@@ -654,12 +654,12 @@ class crawler_baohiemxahoi(base_crawler):
             print(f"[ERROR] Lỗi khi xóa dữ liệu: {e}")
 
     # Set environment variables for??
-    def set_environment_variables(self, company, username, password):
-        """Thiết lập các biến môi trường từ thông tin đăng nhập."""
-        os.environ['BHXH_COMPANY'] = company
-        os.environ['BHXH_USERNAME'] = username
-        os.environ['BHXH_PASSWORD'] = password
-        print(f"Đã thiết lập biến môi trường: BHXH_COMPANY={company}, BHXH_USERNAME={username}, BHXH_PASSWORD={password}")
+    # def set_environment_variables(self, company, username, password):
+    #     """Thiết lập các biến môi trường từ thông tin đăng nhập."""
+    #     os.environ['BHXH_COMPANY'] = company
+    #     os.environ['BHXH_USERNAME'] = username
+    #     os.environ['BHXH_PASSWORD'] = password
+    #     print(f"Đã thiết lập biến môi trường: BHXH_COMPANY={company}, BHXH_USERNAME={username}, BHXH_PASSWORD={password}")
 
     def main_logic(self):
         print('=============')
@@ -692,7 +692,7 @@ class crawler_baohiemxahoi(base_crawler):
             )
 
             # Purpose??
-            self.set_environment_variables(company, username, password)
+            # self.set_environment_variables(company, username, password)
 
             max_month = int(args.month)
             months_to_run = list(range(1, max_month + 1))
