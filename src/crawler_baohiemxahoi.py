@@ -1,30 +1,32 @@
 from .base import base_crawler
-import argparse
-import time
-import base64
-import pdfplumber
-import requests
-import os
+import datetime
 import glob
+import psycopg2
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
-from io import BytesIO
-from datetime import datetime
-from PIL import Image
+from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from sqlalchemy import (
-    DateTime,
-    MetaData,
-    String,
-    Column,
-    Table,
-    Integer,
-    inspect,
-)
+import time
+from selenium.webdriver.chrome.options import Options
+from openpyxl import load_workbook
+from selenium.webdriver.common.keys import Keys
+import pandas as pd
+import numpy as np
+import os
+import requests
+from PIL import Image
+from io import BytesIO
+import base64
+import pdfplumber
+from sqlalchemy import DateTime, ForeignKey, MetaData, String, create_engine, Column, Table, Integer, inspect, Boolean
 from sqlalchemy.sql import text
+import argparse
+import requests
+import json
+from datetime import datetime
 
 
 class crawler_baohiemxahoi(base_crawler):
@@ -37,37 +39,12 @@ class crawler_baohiemxahoi(base_crawler):
         current_date = datetime.now()
 
         self.parser = argparse.ArgumentParser(description="BHXH Data Crawler")
-        # self.parser.add_argument(
-        #     "--username",
-        #     default="",
-        #     required=False,
-        #     help="Tên đăng nhập cho trang bảo hiểm xã hội"
-        # )
-        # self.parser.add_argument(
-        #     "--password",
-        #     default="",
-        #     required=False,
-        #     help="Mật khẩu cho trang bảo hiểm xã hội"
-        # )
-        # self.parser.add_argument(
-        #     "--company",
-        #     default="",
-        #     required=False,
-        #     help="Tên công ty cho trang web Bảo hiểm xã hội"
-        # )
-        self.parser.add_argument(
-            "--month",
-            default=str(current_date.month),
-            required=False,
-            help="Tháng cần crawl (1-12)"
-        )
-        self.parser.add_argument(
-            "--year",
-            type=str,
-            required=False,
-            default=str(current_date.month),
-            help="Năm cần tra cứu (1990-hiện tại)"
-        )
+        
+        self.parser.add_argument("--username", default="", required=False, help="Tên đăng nhập cho trang bảo hiểm xã hội")
+        self.parser.add_argument("--password", default="", required=False, help="Mật khẩu cho trang bảo hiểm xã hội")
+        self.parser.add_argument("--company", default="", required=False, help="Tên công ty cho trang web Bảo hiểm xã hội")
+        self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
+        self.parser.add_argument("--year", type=str, required=False, default=str(current_date.month), help="Năm cần tra cứu (1990-hiện tại)")
         return self.parser.parse_args()
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
@@ -300,8 +277,7 @@ class crawler_baohiemxahoi(base_crawler):
                     print(f"- Finish submitting the form (attempt {attempt})")
                     self.send_slack_notification(f"[INFO] Chương trình đang thực hiên login lần {attempt}",self.webhook_url)
                 except NoSuchElementException:
-                    print(
-                        f"[ERROR] Không tìm thấy nút đăng nhập cho attempt {attempt}. Đang thử lại...")
+                    print(f"[ERROR] Không tìm thấy nút đăng nhập cho attempt {attempt}. Đang thử lại...")
                     self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed",self.webhook_url)
                     # Kiểm tra nếu đăng nhập thành công (dựa trên sự xuất hiện của thẻ span với class idAccount)
                 try:
@@ -322,7 +298,7 @@ class crawler_baohiemxahoi(base_crawler):
                     self.retry_input(username, password)
 
                     # Lưu và giải mã CAPTCHA mới
-                    self.save_captcha_image()
+                    self.save_captcha_image(driver)
                     # enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
                     self.enter_verification_code(captcha_image_path)  # Nhập mã CAPTCHA tự động
         except Exception as e:
@@ -453,7 +429,6 @@ class crawler_baohiemxahoi(base_crawler):
             raise
 
     # Hàm trích xuất dữ liệu và xuất ra CSV:
-
     def extract_specific_rows(self, pdf_path, output_csv_path, company, month, year):
         # Các tiêu đề cần tìm trong PDF
         target_keywords = [
@@ -536,8 +511,7 @@ class crawler_baohiemxahoi(base_crawler):
     def create_data_bhxh_table(self, engine):
         metadata = MetaData()
 
-        data_bhxh = Table(
-            "data_bhxh", metadata,
+        data_bhxh = Table("data_bhxh", metadata,
             Column("id", Integer, primary_key=True, autoincrement=True),
             Column("Kỳ trước mang sang", String),
             Column("Phát sinh trong kỳ", String),
@@ -681,13 +655,11 @@ class crawler_baohiemxahoi(base_crawler):
 
     # Set environment variables for??
     def set_environment_variables(self, company, username, password):
-        pass
-        # """Thiết lập các biến môi trường từ thông tin đăng nhập."""
-        # os.environ['BHXH_COMPANY'] = company
-        # os.environ['BHXH_USERNAME'] = username
-        # os.environ['BHXH_PASSWORD'] = password
-        # print(f"Đã thiết lập biến môi trường: BHXH_COMPANY={
-        #       company}, BHXH_USERNAME={username}, BHXH_PASSWORD={password}")
+        """Thiết lập các biến môi trường từ thông tin đăng nhập."""
+        os.environ['BHXH_COMPANY'] = company
+        os.environ['BHXH_USERNAME'] = username
+        os.environ['BHXH_PASSWORD'] = password
+        print(f"Đã thiết lập biến môi trường: BHXH_COMPANY={company}, BHXH_USERNAME={username}, BHXH_PASSWORD={password}")
 
     def main_logic(self):
         print('=============')
@@ -720,7 +692,7 @@ class crawler_baohiemxahoi(base_crawler):
             )
 
             # Purpose??
-            # self.set_environment_variables(company, username, password)
+            self.set_environment_variables(company, username, password)
 
             max_month = int(args.month)
             months_to_run = list(range(1, max_month + 1))
