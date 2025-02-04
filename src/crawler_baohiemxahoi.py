@@ -44,29 +44,29 @@ class crawler_baohiemxahoi(base_crawler):
         self.parser.add_argument("--password", default="", required=False, help="Mật khẩu cho trang bảo hiểm xã hội")
         self.parser.add_argument("--company", default="", required=False, help="Tên công ty cho trang web Bảo hiểm xã hội")
         self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
-        self.parser.add_argument("--year", type=str, required=False, default=str(current_date.month), help="Năm cần tra cứu (1990-hiện tại)")
+        self.parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
         return self.parser.parse_args()
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
     # 1. Nhập username và password vào trang web 'baohiemxahoi'
-    def login_to_baohiemxahoi(self, driver, username, password, company):
+    def login_to_baohiemxahoi(self, username, password, company):
         """Đăng nhập vào trang web 'baohiemxahoi'."""
         url = "https://dichvucong.baohiemxahoi.gov.vn/#/index"
-        driver.get(url)
+        self.driver.get(url)
         time.sleep(5)
 
         # Kiểm tra và nhấn nút Thoát trong dropdown menu tài khoản, nếu có
         try:
             # Tìm nút dropdown menu tài khoản
-            account_menu_button = WebDriverWait(driver, 10).until(
+            account_menu_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//*[@id='accountMenuBtn']"))
             )
-            actions = ActionChains(driver)
+            actions = ActionChains(self.driver)
             actions.move_to_element(account_menu_button).perform()
             time.sleep(2)  # Đợi dropdown menu xuất hiện
 
             # Tìm và nhấn nút Thoát trong menu dropdown
-            logout_button = driver.find_element(By.XPATH,"//*[@id='header']/div[1]/div/div/div[2]/div/div/div[2]/div/button")
+            logout_button = self.driver.find_element(By.XPATH,"//*[@id='header']/div[1]/div/div/div[2]/div/div/div[2]/div/button")
             logout_button.click()
             print("- Finish: Nhấn nút Thoát thành công.")
         except (TimeoutException, NoSuchElementException):
@@ -74,9 +74,9 @@ class crawler_baohiemxahoi(base_crawler):
 
         # Nhấn nút Đăng nhập
         try:
-            print(f"- Đang đăng nhập cho công ty: {self.company}")
+            print(f"- Đang đăng nhập cho công ty: {company}")
             self.send_slack_notification(f"[INFO] Chương trình đang login vào công ty: {company}",self.webhook_url)
-            login_button = WebDriverWait(driver, 10).until(
+            login_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), ' Đăng nhập ')]"))
             )
             login_button.click()
@@ -86,24 +86,24 @@ class crawler_baohiemxahoi(base_crawler):
             print("[ERROR] Nút Đăng nhập không hiển thị hoặc không thể nhấn.")
 
         # Nhấn nút Tổ chức
-        to_chuc_button = driver.find_element(By.XPATH, "//span[contains(text(), 'Tổ chức')]")
+        to_chuc_button = self.driver.find_element(By.XPATH, "//span[contains(text(), 'Tổ chức')]")
         to_chuc_button.click()
         time.sleep(3)
         print("- Finish click to to_chuc")
 
         # Nhập tên đăng nhập
-        username_field = driver.find_element(By.XPATH, '//input[@placeholder="Mã số thuế"]')
+        username_field = self.driver.find_element(By.XPATH, '//input[@placeholder="Mã số thuế"]')
         username_field.send_keys(username)
         print("- Finish keying in username_field")
         time.sleep(3)
 
         # Nhập mật khẩu
-        password_field = WebDriverWait(driver, 10).until(
+        password_field = WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Mật khẩu"]'))
         )
-        driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
-        driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",password_field)
-        driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",password_field)
+        self.driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
+        self.driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",password_field)
+        self.driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",password_field)
 
         # Kiểm tra giá trị sau khi nhập
         entered_password = password_field.get_attribute("value")
@@ -299,8 +299,8 @@ class crawler_baohiemxahoi(base_crawler):
 
                     # Lưu và giải mã CAPTCHA mới
                     self.save_captcha_image(driver)
-                    # enter_verification_code(driver)  # Nhập mã CAPTCHA thủ công
-                    self.enter_verification_code(captcha_image_path)  # Nhập mã CAPTCHA tự động
+                    
+                    self.enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
         except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
             self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
@@ -322,10 +322,10 @@ class crawler_baohiemxahoi(base_crawler):
 
         return new_filename
 
-    def download_blob_pdf(self, save_path):
+    def download_blob_pdf(self, driver, save_path):
         try:
             print("[INFO] Đang trích xuất nội dung từ blob URL qua JavaScript...")
-            pdf_data = self.driver.execute_script("""
+            pdf_data = driver.execute_script("""
                     const blobUrl = arguments[0];
                     return new Promise((resolve, reject) => {
                     fetch(blobUrl)
@@ -338,7 +338,7 @@ class crawler_baohiemxahoi(base_crawler):
                         })
                         .catch(reject);
                     });
-            """,self.driver.current_url)
+            """,driver.current_url)
 
             # Tạo tên file duy nhất và lưu file
             unique_save_path = self.get_unique_filename(save_path)
@@ -351,7 +351,7 @@ class crawler_baohiemxahoi(base_crawler):
             self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
             return None
 
-    def download_tab_data(self, save_path):
+    def download_tab_data(self,  save_path):
         """
         Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
         """
@@ -464,39 +464,39 @@ class crawler_baohiemxahoi(base_crawler):
         print(f"[INFO] Dữ liệu đã được lưu tại: {unique_csv_path}")
 
     # 2. Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
-    def crawl(self, driver, company, month, year):
+    def crawl(self, company, month, year):
         try:
             # Nhấn nút tra cứu Hồ sơ
-            tra_cuu_button = driver.find_element(By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')
+            tra_cuu_button = self.driver.find_element(By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')
             tra_cuu_button.click()
             print("- Finish click Tra cứu Hồ sơ")
             time.sleep(3)
 
             # Nhấn nút Tra cứu C12
-            tra_cuu_c12_button = driver.find_element(By.XPATH,"/html/body/app-root/app-portal/div/app-siderbar/div/div/ul/li[9]/a/span/span",)
+            tra_cuu_c12_button = self.driver.find_element(By.XPATH,"/html/body/app-root/app-portal/div/app-siderbar/div/div/ul/li[9]/a/span/span",)
             tra_cuu_c12_button.click()
             print("- Finish click Tra cứu C12")
             time.sleep(3)
 
             # Nhấn vào nút sổ các tháng cần tra cứu
-            du_lieu_button = driver.find_element(By.CLASS_NAME, "mat-select-arrow-wrapper")
+            du_lieu_button = self.driver.find_element(By.CLASS_NAME, "mat-select-arrow-wrapper")
             du_lieu_button.click()
             print("- Finish click các tháng cần tra cứu")
             time.sleep(3)
 
             # Gọi đến hàm find_months với tháng từ argument
-            self.find_months(driver, month)
-            self.find_year(driver, year)
+            self.find_months(month)
+            self.find_year(year)
 
             # Nhấn vào nút Tra cứu
-            du_lieu_button = driver.find_element(By.CLASS_NAME, "mat-raised-button")
+            du_lieu_button = self.driver.find_element(By.CLASS_NAME, "mat-raised-button")
             du_lieu_button.click()
             print("- Finish click nút Tra cứu")
             time.sleep(10)
 
             # Gọi đến hàm lưu dữ liệu về máy
             save_path = "BangDuLieuTheoThang.pdf"
-            unique_pdf_path = self.download_tab_data(driver, save_path)
+            unique_pdf_path = self.download_tab_data(save_path)
             if unique_pdf_path:
                 output_csv_path = f"{company}_{month}_{year}_data_bhxh.csv"
                 self.extract_specific_rows(unique_pdf_path, output_csv_path, company, month, year)
@@ -667,14 +667,14 @@ class crawler_baohiemxahoi(base_crawler):
         captcha_image_path = "captcha_image.png"
 
         # Khởi tạo trình duyệt
-        driver = self.initialize_driver()
+        self.driver = self.initialize_driver()
         engine = self.create_and_connect_to_database()
 
         # Lấy danh sách công ty từ database
         companies = self.fetch_company_information(engine)
         if not companies:
             print("Không có công ty nào để xử lý. Kết thúc chương trình.")
-            driver.quit()
+            self.driver.quit()
             return
 
         total_companies = len(companies)
@@ -706,20 +706,20 @@ class crawler_baohiemxahoi(base_crawler):
 
             try:
                 # Đăng nhập vào hệ thống
-                self.login_to_baohiemxahoi(driver, username, password, company)
-                self.save_captcha_image(driver)
-                self.enter_verification_code(driver, captcha_image_path)
-                self.submit_form(driver, username, password, captcha_image_path)
+                self.login_to_baohiemxahoi(username, password, company)
+                self.save_captcha_image(self.driver)
+                self.enter_verification_code(self.driver, captcha_image_path)
+                self.submit_form(self.driver, username, password, captcha_image_path)
 
                 for month in months_to_run:
                     print(f"\nĐang xử lý tháng {month} cho công ty {company}")
                     try:
                         # Mở tab mới trước khi xử lý
-                        driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
-                        driver.switch_to.window(driver.window_handles[-1])
+                        self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
+                        self.driver.switch_to.window(self.driver.window_handles[-1])
 
                         # Gọi hàm crawl
-                        self.crawl(driver, company, str(month), args.year)
+                        self.crawl(company, str(month), args.year)
 
                         # Lưu dữ liệu vào database
                         self.create_data_bhxh_table(engine)
@@ -732,12 +732,12 @@ class crawler_baohiemxahoi(base_crawler):
                             company_failure += 1
 
                         # Sau khi xử lý xong, đóng tất cả tab cũ, chỉ giữ lại tab hiện tại
-                        current_tab = driver.current_window_handle
-                        for handle in driver.window_handles:
+                        current_tab = self.driver.current_window_handle
+                        for handle in self.driver.window_handles:
                             if handle != current_tab:
-                                driver.switch_to.window(handle)
-                                driver.close()
-                        driver.switch_to.window(current_tab)
+                                self.driver.switch_to.window(handle)
+                                self.driver.close()
+                        self.driver.switch_to.window(current_tab)
 
                     except Exception as e:
                         print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty {company}: {e}")
@@ -771,4 +771,4 @@ class crawler_baohiemxahoi(base_crawler):
             print(f"Công ty {company}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
             self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url)
 
-        driver.quit()
+        self.driver.quit()
