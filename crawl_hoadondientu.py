@@ -20,7 +20,7 @@ import cairosvg
 from selenium.webdriver.chrome.service import Service
 import psycopg2
 from psycopg2.extras import execute_values
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from psycopg2 import sql 
 from psycopg2.extras import DictCursor
@@ -33,62 +33,69 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
-from dotenv import load_dotenv
-
 
 # =================== BIẾN MÔI TRƯỜNG ===================
-load_dotenv()
-# # Mục thông tin đăng nhập Hóa đơn điện tử
-# HOADON_USERNAME = ""     # 0101850613 user new    # 0101652097 user cu 
-# HOADON_PASSWORD = ""      # At2025@@@
-# HOADON_COMPANY = ""
-# # API key cho dịch vụ giải captcha
-# API_KEY = "9cfba26a8feabf37b5051b723964df1a"
 
-# # Mục thông tin kết nối database
-# DB_USER = "postgres" 
-# DB_PASSWORD = "123456" 
-# DB_NAME = "data_hoa_don_dien_tu"
-# DB_HOST = "localhost" 
-# DB_PORT = "5432" 
+# API key cho dịch vụ giải captcha
+API_KEY = "dee651bcd3d3ef29ba768b46ccfdf6fc"
 
-# # URL Webhook Slack mặc định
-# WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+# Mục thông tin kết nối database
+DB_USER = "postgres" 
+DB_PASSWORD = "123456" 
+DB_NAME = "crawling_data"
+DB_HOST = "localhost" 
+DB_PORT = "5432" 
 
-# # Thông tin xác thực Google Drive
-# SERVICE_ACCOUNT_FILE = 'crawlhoadondientu-5066871284ed.json'
-creds = service_account.Credentials.from_service_account_file(os.getenv('SERVICE_ACCOUNT_FILE'))
-service = build('drive', 'v3', credentials=creds)
+# URL Webhook Slack mặc định
+WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
-print('hello hoadondientu')
+# Cấu hình lấy bộ dữ liệu trong năm hiện tại
+MONTHS_AGO = 0  # Mặc định 0 là tháng hiện tại  --months-ago
+CRAWL_MONTHS = 1  # Mặc định crawl 1 tháng      --crawl-months
+
+# Thông tin xác thực Google Drive
+SERVICE_ACCOUNT_FILE = 'glassy-tube-448614-m4-507193332bdb.json'
 # ==============================================================================
 
 def parse_arguments():
     """Parse command line arguments with environment variables as defaults."""
     parser = argparse.ArgumentParser(description='Hóa đơn điện tử Data Crawler')
     
-    parser.add_argument('--username', default=os.getenv('HOADON_USERNAME'),required=False,
-                        help='Tên đăng nhập cho trang web Hóa đơn điện tử')
-    parser.add_argument('--password', default=os.getenv('HOADON_PASSWORD'), required=False,
-                        help='Mật khẩu nhập cho trang web Hóa đơn điện tử')
-    parser.add_argument('--company', default=os.getenv('HOADON_COMPANY'), required=False,
-                        help='Tên công ty cho trang web Hóa đơn điện tử')
-    parser.add_argument('--api-key', default=os.getenv('API_KEY'), required=False,
+
+    parser.add_argument('--api-key', default=API_KEY, required=False,
                         help='API key từ trang web autocaptcha để giải captcha')
-    parser.add_argument('--db-user', default=os.getenv('DB_USER'), required=False,
+    parser.add_argument('--db-user', default=DB_USER, required=False,
                         help='PostgreSQL username')
-    parser.add_argument('--db-password', default=os.getenv('DB_PASSWORD'), required=False,
+    parser.add_argument('--db-password', default=DB_PASSWORD, required=False,
                         help='PostgreSQL password')
-    parser.add_argument('--db-name', default=os.getenv('DB_NAME'), required=False,
+    parser.add_argument('--db-name', default=DB_NAME, required=False,
                         help='Database name')
-    parser.add_argument('--db-host', default=os.getenv('DB_HOST'), required=False,
+    parser.add_argument('--db-host', default=DB_HOST, required=False,
                         help='Database host')
-    parser.add_argument('--db-port', default=os.getenv('DB_PORT'), required=False,
+    parser.add_argument('--db-port', default=DB_PORT, required=False,
                         help='Database port')
-    parser.add_argument('--webhook-url', default=os.getenv('WEBHOOK_URL'), required=False,
+    parser.add_argument('--webhook-url', default=WEBHOOK_URL, required=False,
                         help='Liên kết webhook từ Slack')  
     
-    return parser.parse_args()
+    parser.add_argument('--months-ago', type=int, default=MONTHS_AGO, required=False,
+                        help='Số tháng cần quay lại từ tháng hiện tại. '
+                             '0: Tháng hiện tại, '
+                             '1: Lùi về 1 tháng')
+    
+    parser.add_argument('--crawl-months', type=int, default=CRAWL_MONTHS, required=False,
+                        help='Số lượng tháng muốn crawl. Mặc định: 1 tháng')
+    
+    args = parser.parse_args()
+    
+    if args.months_ago < 0:
+        print(f"[WARNING] Giá trị months-ago không được âm. Đặt về 0. Chỉ lấy tháng hiện tại.")
+        args.months_ago = 0
+
+    if args.crawl_months < 1 or args.months_ago == 0:
+        print("[WARNING] Số tháng crawl phải lớn hơn 0. Đặt về 1 tháng.")
+        args.crawl_months = 1
+    
+    return args
 
 args = parse_arguments()
 webhook_url = args.webhook_url
@@ -113,6 +120,7 @@ def initialize_driver():
       driver = webdriver.Chrome(options=chrome_options)
       driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
       time.sleep(5)
+      send_slack_notification('Workflow HoaDonDienTu', webhook_url)
       return driver
 
 # 1.1 Nhập username và password vào trang web 'hoadondientu'
@@ -123,7 +131,7 @@ def login_to_thuedientu(driver, username, password, company):
       url = 'https://hoadondientu.gdt.gov.vn/'
       driver.get(url)
       print('- Finish initializing a driver')
-      send_slack_notification(f'[INFO] Workflow Crawled data website hoadondientu <{company}>', webhook_url)
+      send_slack_notification(f'[INFO] Chương trình đang login vào công ty: <{company}>', webhook_url)
       time.sleep(3)
       
       try:
@@ -149,7 +157,6 @@ def login_to_thuedientu(driver, username, password, company):
             print("logout_button không hiển thị hoặc không thể nhấn")
             pass
       
-      
       # Nhấn nút Đăng nhập
       try:
             login_button = WebDriverWait(driver, 10).until(
@@ -170,8 +177,6 @@ def login_to_thuedientu(driver, username, password, company):
       password_field.send_keys(password)
       print('- Finish keying in password_field')
       time.sleep(2)
-
-
 
 def send_slack_notification(message, webhook_url):
     headers = {
@@ -218,15 +223,17 @@ def crawl_img(driver):
 
             else:
                   print("Không tìm thấy ảnh SVG base64 trong src của thẻ img.")
+                  send_slack_notification('[ERROR] Workflow crawling data hoadondientu failed', webhook_url)
       
       except Exception as e:
             print(f"Đã xảy ra lỗi: {e}")
+            send_slack_notification('[ERROR] Workflow crawling data hoadondientu failed', webhook_url)
 
 # Hàm gửi ảnh đến AntiCaptcha
 def solve_captcha(image_base64):
     url = "https://anticaptcha.top/api/captcha"
     payload = {
-        "apikey": os.getenv('API_KEY'),
+        "apikey": API_KEY,
         "img": image_base64,
         "type": 28  # Loại captcha, có thể cần thay đổi nếu không đúng
     }
@@ -251,9 +258,11 @@ def solve_captcha(image_base64):
             return response_data["captcha"]
         else:
             print(f"API response indicates failure: {response_data}")
+            send_slack_notification(f'[ERROR] Workflow crawling data hoadondientu failed {response_data}', webhook_url)
             return None
     except Exception as e:
         print(f"Error with request: {str(e)}")
+        send_slack_notification('[ERROR] Workflow crawling data hoadondientu failed', webhook_url)
         return None
 
 # Hàm xử lý ảnh captcha và gửi lên AntiCaptcha
@@ -284,6 +293,7 @@ def solve_captcha_from_file(file_path):
         return captcha_text
     except Exception as e:
         print(f"An error occurred: {str(e)}")
+        send_slack_notification('[ERROR] Workflow crawling data hoadondientu failed', webhook_url)
         return None
 
 # 1.2 Nhập mã Captcha (tự động)
@@ -331,7 +341,7 @@ def submit_form(driver, captcha_image_path):
                   submit_button = driver.find_element(By.XPATH, '/html/body/div[2]/div/div[2]/div/div[2]/div[2]/form/div/div[6]/button')
                   submit_button.click()                           
                   print(f'- Finish submitting the form (Lần {login_attempt + 1})')
-                  send_slack_notification(f'[INFO] Workflow đang thực hiên login lần <{login_attempt + 1}>', webhook_url)
+                  send_slack_notification(f'[INFO] Chương trình đang thực hiên login lần {login_attempt + 1}', webhook_url)
                   # Kiểm tra nếu có thông báo lỗi CAPTCHA
                   try:
                         # Chờ thông báo lỗi CAPTCHA
@@ -361,7 +371,7 @@ def submit_form(driver, captcha_image_path):
                               By.XPATH, '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span'
                         )
                         if tra_cuu_element:
-                              print("[SUCCESS] Đăng nhập thành công! Đã vào trang chính.")
+                              print("[SUCCESS] Chương trình đã login thành công vào trang HDDT")
                               send_slack_notification('[SUCCESS] Đăng nhập thành công! Đã vào trang chính.', webhook_url)
                               if login_attempt == 0:
                                     crawl(driver)  # Lần đầu tiên, gọi hàm crawl
@@ -408,42 +418,69 @@ def crawls(driver):
       print('- Finish click tra cứu hóa đơn')
       time.sleep(3)
 
+def navigate_to_first_day_of_month(driver, months_to_go_back=0):
+    """Navigate to the first day of the month."""
+    try:
+        # Wait for the previous month button to be clickable
+        prev_month_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//a[@class="ant-calendar-prev-month-btn"]'))
+        )
+        
+        # Click previous month button the specified number of times
+        for _ in range(months_to_go_back):
+            prev_month_button.click()
+            time.sleep(0.5)
+        
+        # Find and click day 1
+        first_row_days = driver.find_elements(By.XPATH, '//div[contains(@class, "ant-calendar-date-panel")]//tr[1]/td/div')
+        for day in first_row_days:
+            if day.text.strip() == "1":
+                day.click()
+                print(f"- Navigated to first day of the month, went back {months_to_go_back} months")
+                return True
+        
+        raise Exception("Could not find day '1' in the first row")
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to navigate to first day:")
+        return False
+
+
 # 3. chọn vào tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
 def crawl_hoa_don_mua_vao(driver):
-      # Chọn Tra cứu hóa đơn điện tử mua vào
-      mua_vao_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[1]/div/div/div/div/div[1]/div[2]/span'))
-      )
-      mua_vao_button.click()
-      print('- Finish click tab tra cứu hóa đơn mua vào')
-      time.sleep(3)
-      
-      # Chọn ngày (Từ ngày -> Đến ngày)
-      try:
-      # Chờ cho các thẻ input xuất hiện
-            inputs = WebDriverWait(driver, 10).until(
-                  EC.presence_of_all_elements_located((By.XPATH, '//*[@id="tngay"]/div/input'))
-            )
-           
-            # Chọn thẻ input ở vị trí thứ 3 (index bắt đầu từ 0 trong Python)
-            target_input_to = inputs[1]  # Lấy thẻ input thứ 3
-            
-            target_input_to.click()
-            print("- click thành công vào input")
-            
-            # user có thể tự chọn tháng muốn crawl dữ liệu (chọn tháng thủ công trong 6s)     
-           
-            time.sleep(5)
-            print("- Bạn đã chọn thời gian tìm kiếm.")
-      
-      except Exception as e:
-            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
-      
-      # Chọn nút Tìm kiếm 
-      tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
-      tim_kiem.click()                 
-      print('- Finish click tìm kiếm hóa đơn mua vào')
-      time.sleep(2)
+    # Chọn Tra cứu hóa đơn điện tử mua vào
+    mua_vao_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[1]/div/div/div/div/div[1]/div[2]/span'))
+    )
+    mua_vao_button.click()
+    print('- Finish click tab tra cứu hóa đơn mua vào')
+    time.sleep(3)
+    
+    try:
+        # Chờ cho các thẻ input xuất hiện
+        inputs = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.XPATH, '//*[@id="tngay"]/div/input'))
+        )
+       
+        # Chọn thẻ input ở vị trí thứ 3
+        target_input_to = inputs[1]
+        
+        target_input_to.click()
+        print("- click thành công vào input")
+        
+        # Chỉ truyền số tháng cần lùi
+        navigate_to_first_day_of_month(driver, months_to_go_back=args.months_ago)
+        print("- Đã chọn thời gian tìm kiếm.")
+
+    except Exception as e:
+        print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+        send_slack_notification('[ERROR]Chương trình chạy thất bại', webhook_url)
+    
+    # Chọn nút Tìm kiếm 
+    tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
+    tim_kiem.click()                 
+    print('- Finish click tìm kiếm hóa đơn mua vào')
+    time.sleep(2)
       
 # ( Hàm Thêm stt sau mỗi file trùng tên )
 def get_unique_filename(base_filename):
@@ -541,7 +578,6 @@ def extract_table_mua_vao_to_csv(driver, output_file):
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
             print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
-            send_slack_notification(f'[SUCCESS] Chương trình đã lưu thành công file {unique_output_file}', webhook_url)
 
       except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
@@ -601,7 +637,6 @@ def capture_full_page(driver, save_path):
 
             combined_image.save(save_path)
             print(f"[SUCCESS] Ảnh đã lưu tại: {save_path}")
-            send_slack_notification(f'[SUCCESS] Chương trình đã lưu thành công file {save_path}', webhook_url)
 
             # Xóa ảnh tạm
             for img in screenshots:
@@ -667,38 +702,40 @@ def extract_img_hoa_don_mua_vao(driver):
 
 # 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu    
 def crawl_hoa_don_ban_ra(driver):
-      # Chọn Tra cứu hóa đơn điện tử bán ra (đảm bảo đã click vào tab này trước)
-      mua_vao_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[1]/div/div/div/div/div[1]/div[1]/span'))
-      )                                               
-      mua_vao_button.click()
-      print('- Finish click tab tra cứu hóa đơn bán ra')
-      time.sleep(3)
-      try:
-      # Chờ cho các thẻ input xuất hiện
-            inputs = WebDriverWait(driver, 10).until(
-                  EC.presence_of_all_elements_located((By.XPATH, '//*[@id="tngay"]/div/input'))
-            )
-           
-            # Chọn thẻ input ở vị trí thứ 1 (index bắt đầu từ 0 trong Python)
-            target_input_to = inputs[0]  # Lấy thẻ input thứ 1
-            
-            target_input_to.click()
-            print("- click thành công vào input")
-            
-            # users có thể tự chọn tháng muốn crawl dữ liệu về (chọn tháng thủ công trong 6s)     
-           
-            time.sleep(6)
-            print("- Bạn đã chọn thời gian tìm kiếm.")
+    # Chọn Tra cứu hóa đơn điện tử bán ra
+    mua_vao_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[1]/div/div/div/div/div[1]/div[1]/span'))
+    )                                               
+    mua_vao_button.click()
+    print('- Finish click tab tra cứu hóa đơn bán ra')
+    time.sleep(3)
+    
+    try:
+        # Chờ cho các thẻ input xuất hiện
+        inputs = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.XPATH, '//*[@id="tngay"]/div/input'))
+        )
+       
+        # Chọn thẻ input ở vị trí thứ 1
+        target_input_to = inputs[0]
+        
+        target_input_to.click()
+        print("- click thành công vào input")
+        
+        # Chỉ truyền số tháng cần lùi
+        navigate_to_first_day_of_month(driver, months_to_go_back=args.months_ago)
+        print("- Đã chọn thời gian tìm kiếm.")
 
-      except Exception as e:
-            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
-      # Chọn nút Tìm kiếm 
-      tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[1]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
-      tim_kiem.click()                          
-                                                
-      print('- Finish click tìm kiếm hóa bán ra')
-      time.sleep(2)
+    except Exception as e:
+        print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
+    
+    # Chọn nút Tìm kiếm 
+    tim_kiem = driver.find_element(By.XPATH, '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[1]/div[3]/div[1]/div/div/form/div[3]/div[1]/button')        
+    tim_kiem.click()                          
+                                              
+    print('- Finish click tìm kiếm hóa bán ra')
+    time.sleep(2)
       
 # 6. xuất dữ liệu ở trang ( - Tra cứu hóa đơn điện tử bán ra - ) ra file csv
 def extract_table_ban_ra_to_csv(driver, output_file_ra):
@@ -781,7 +818,6 @@ def extract_table_ban_ra_to_csv(driver, output_file_ra):
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
             print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
-            send_slack_notification(f'[SUCCESS] Chương trình đã lưu thành công file {unique_output_file}', webhook_url)
       except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
 
@@ -839,7 +875,7 @@ def extract_img_hoa_don_ban_ra(driver):
 
       except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
-            send_slack_notification('Chương trình chạy thất bại', webhook_url)
+            send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
 
 
 # Lưu dữ liệu vào database
@@ -889,48 +925,46 @@ def ensure_database_exists(args):
         if connection:
             connection.close()
 
-
 # Tạo bảng nếu chưa tồn tại
 CREATE_TABLE_QUERY = """
-CREATE TABLE IF NOT EXISTS invoices (
+CREATE TABLE IF NOT EXISTS data_hoadon (
       id SERIAL PRIMARY KEY,
-      company VARCHAR(255),
-      loai_hoa_don VARCHAR(50),
       mau_so VARCHAR(255),
       ky_hieu VARCHAR(255),
-      so_hoa_don VARCHAR(255) UNIQUE,
+      so_hoa_don VARCHAR(255),
       ngay_lap DATE,
-      tong_tien NUMERIC,
+      thong_tin_nguoi_ban TEXT,  -- File hóa đơn mua vào
+      thong_tin_hoa_don TEXT,  -- File hóa đơn bán ra
+      tong_tien_chua_thue VARCHAR,
+      tong_tien_thue VARCHAR,
+      tong_tien_chiet_khau VARCHAR,
+      tong_tien_phi VARCHAR,
+      tong_tien_thanh_toan VARCHAR,
+      don_vi_tien_te VARCHAR(255),
       trang_thai VARCHAR(255),
-      image_path VARCHAR(255),
       image_drive_path VARCHAR(255),
-      image_data BYTEA,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS mua_vao (
-      id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       company VARCHAR(255),
-      ky_hieu VARCHAR(255),
-      so_hoa_don VARCHAR(255),
-      tong_tien NUMERIC,
-      image_path VARCHAR(255),
-      image_drive_path VARCHAR(255),
-      image_data BYTEA,
-      thong_tin_nguoi_ban TEXT
+      UNIQUE (company, so_hoa_don) 
 );
+"""
 
-CREATE TABLE IF NOT EXISTS ban_ra (
-      id INT PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
-      company VARCHAR(255),
-      ky_hieu VARCHAR(255),
-      so_hoa_don VARCHAR(255),
-      tong_tien NUMERIC,
-      image_path VARCHAR(255),
-      image_drive_path VARCHAR(255),
-      image_data BYTEA,
-      thong_tin_nguoi_mua TEXT
-);
+# Tạo khóa ngoại nếu chưa tồn tại
+ADD_FOREIGN_KEY_QUERY = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_company' 
+        AND table_name = 'data_hoadon'
+    ) THEN
+        ALTER TABLE data_hoadon 
+        ADD CONSTRAINT fk_company 
+        FOREIGN KEY (company) 
+        REFERENCES company_information (company);
+    END IF;
+END $$;
 """
 
 def convert_date(date_str):
@@ -939,10 +973,10 @@ def convert_date(date_str):
 
 
 def convert_to_numeric(value):
-    """Chuyển đổi giá trị tiền tệ từ định dạng có dấu phẩy sang số."""
-    if value:
-        return float(value.replace('.', '').replace(',', '.'))
-    return None
+    """Giữ nguyên số có dấu '.' và nếu trống thì lưu rỗng."""
+    if isinstance(value, str) and value.strip():
+        return value 
+    return ''  
 
 def get_latest_file(pattern):
     files = list(Path('.').glob(pattern))
@@ -1011,67 +1045,62 @@ def get_latest_files_by_timestamp(csv_pattern, img_pattern):
         print(f"Error getting latest files: {e}")
         return None, []
 
+# ==================== Cài đặt phạm vi quyền truy cập ==================== #
+SCOPES = ['https://www.googleapis.com/auth/drive']
+SERVICE_ACCOUNT_FILE = SERVICE_ACCOUNT_FILE  # Đảm bảo biến môi trường SERVICE_ACCOUNT_FILE đã được đặt
 
-# def fetch_image_data(table_name):
-#     query = f"SELECT id, image_path, image_data FROM {table_name};"
-#     try:
-#         with psycopg2.connect(**DB_CONFIG) as conn:
-#             with conn.cursor() as cur:
-#                 cur.execute(query)
-#                 rows = cur.fetchall()
-#                 for row in rows:
-#                     record_id, image_path, image_data = row
-#                     print(f"ID: {record_id}, Path: {image_path}")
-#                     if image_data:
-#                         # Quyết định đuôi file hình ảnh là .png
-#                         file_extension = image_path.split('.')[-1] if image_path else 'png'
-#                         save_path = f"{table_name}_retrieved_{record_id}.{file_extension}"
-                        
-#                         # Lưu hình ảnh
-#                         with open(save_path, 'wb') as f:
-#                             f.write(image_data)
-#                         print(f"Dữ liệu hình ảnh từ database được lưu thành: {save_path}")
-#     except Exception as e:
-#         print(f"Lỗi chuyển đổi hình ảnh từ bảng {table_name}: {e}")
+# ==================== Khởi tạo dịch vụ Google Drive ==================== #
+def initialize_drive_service():
+    """Khởi tạo dịch vụ Google Drive bằng tài khoản dịch vụ."""
+    try:
+        if not SERVICE_ACCOUNT_FILE or not os.path.exists(SERVICE_ACCOUNT_FILE):
+            raise FileNotFoundError(f"[ERROR] Service account file not found: {SERVICE_ACCOUNT_FILE}")
+        
+        creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        service = build('drive', 'v3', credentials=creds)
+        print("[SUCCESS] Initialized Google Drive service.")
+        return service
+    except FileNotFoundError as e:
+        print(e)
+        return None
+    except Exception as e:
+        print(f"[ERROR] Failed to initialize Google Drive service: {e}")
+        return None
 
-
-
-
-
-
-# Tạo thư mục mới trên Google Drive và thiết lập quyền truy cập
-def set_permissions(file_id):
-    """Thiết lập quyền truy cập cho file."""
+# ==================== Cấp quyền cho tệp trên Google Drive ==================== #
+def set_permissions(service, file_id):
+    """Cấp quyền truy cập cho tệp trên Google Drive."""
     permission = {
         'type': 'anyone',
-        'role': 'writer'  # 'writer' cho phép xem, sửa và xóa
+        'role': 'writer'  # Cấp quyền 'writer' cho phép xem, sửa và xóa
     }
     try:
         service.permissions().create(fileId=file_id, body=permission).execute()
-        print(f"Permissions set for file ID: {file_id}")
+        print(f"[SUCCESS] Permissions set for file ID: {file_id}")
     except Exception as error:
-        print(f"An error occurred while setting permissions for {file_id}: {error}")
+        print(f"[ERROR] An error occurred while setting permissions for {file_id}: {error}")
 
-def create_invoice_directory_on_drive(company, username, password):
-    """Tạo thư mục hóa đơn trên Google Drive."""
-    # Tìm thư mục chính HoaDon
+# ==================== Tạo thư mục hóa đơn trên Google Drive ==================== #
+def create_invoice_directory_on_drive(service, company):
+    """Tạo thư mục hóa đơn trên Google Drive và trả về ID của thư mục chính và thư mục con."""
+    # Tìm thư mục chính 'HoaDon'
     query = "mimeType='application/vnd.google-apps.folder' and name='HoaDon'"
     response = service.files().list(q=query, fields='files(id)').execute()
-    
-    # Nếu thư mục chính chưa tồn tại, tạo nó
+
     if not response.get('files'):
+        # Nếu thư mục chính chưa tồn tại, tạo mới
         folder_metadata = {
             'name': 'HoaDon',
             'mimeType': 'application/vnd.google-apps.folder'
         }
         folder = service.files().create(body=folder_metadata, fields='id').execute()
         main_folder_id = folder.get('id')
-        print(f"Folder created: HoaDon with ID: {main_folder_id}")
+        print(f"[SUCCESS] Folder created: HoaDon with ID: {main_folder_id}")
     else:
         main_folder_id = response.get('files')[0].get('id')
-        print(f"Folder already exists: HoaDon with ID: {main_folder_id}")
-    set_environment_variables(company, username, password)
-    # Tạo thư mục con với tên theo định dạng "HoaDon_NgàyThángNăm_Giờ"
+        print(f"[INFO] Folder already exists: HoaDon with ID: {main_folder_id}")
+
+    # Tạo thư mục con với tên công ty và thời gian hiện tại
     current_time = datetime.now()
     subfolder_name = f"{company}_{current_time.strftime('%d/%m/%Y_%H:%M:%S')}"
     subfolder_metadata = {
@@ -1079,266 +1108,124 @@ def create_invoice_directory_on_drive(company, username, password):
         'mimeType': 'application/vnd.google-apps.folder',
         'parents': [main_folder_id]
     }
-    
+
     subfolder = service.files().create(body=subfolder_metadata, fields='id').execute()
     subfolder_id = subfolder.get('id')
-    print(f"Subfolder created: {subfolder_name} with ID: {subfolder_id}")
+    print(f"[SUCCESS] Subfolder created: {subfolder_name} with ID: {subfolder_id}")
 
-    # Thiết lập quyền truy cập cho thư mục chính và thư mục con
-    set_permissions(main_folder_id)
-    set_permissions(subfolder_id)
+    # Cấp quyền truy cập cho thư mục chính và thư mục con
+    set_permissions(service, main_folder_id)
+    set_permissions(service, subfolder_id)
 
-    # In thông tin chủ sở hữu
-    try:
-        file_info = service.files().get(fileId=main_folder_id, fields='owners').execute()
-        owners = file_info.get('owners', [])
-        for owner in owners:
-            print(f"Owner: {owner.get('emailAddress')} (ID: {owner.get('id')})")
-    except Exception as error:
-        print(f"An error occurred while retrieving owner information: {error}")
-
-    # Thông báo đường dẫn đến thư mục chính và thư mục con
-    print(f"Link to main folder: https://drive.google.com/drive/folders/{main_folder_id}")
-    print(f"Link to subfolder: https://drive.google.com/drive/folders/{subfolder_id}")
-    send_slack_notification(f'[SUCCESS] Link to main folder: https://drive.google.com/drive/folders/{main_folder_id}', webhook_url)
+    # Thông báo đường dẫn tới thư mục chính và thư mục con
+    print(f"[INFO] Link to main folder: https://drive.google.com/drive/folders/{main_folder_id}")
+    print(f"[INFO] Link to subfolder: https://drive.google.com/drive/folders/{subfolder_id}")
+    send_slack_notification(f"[INFO] Link to subfolder: https://drive.google.com/drive/folders/{subfolder_id}",webhook_url)
 
     return main_folder_id, subfolder_id
 
-def upload_image_to_drive(file_path, folder_id):
-    """Tải ảnh lên Google Drive và in đường dẫn."""
+# ==================== Tải ảnh lên Google Drive ==================== #
+def upload_image_to_drive(service, file_path, folder_id):
+    """Tải ảnh lên Google Drive và trả về đường dẫn tải xuống."""
+    if not os.path.exists(file_path):
+        print(f"[ERROR] File not found: {file_path}")
+        return None
+
     file_metadata = {
         'name': os.path.basename(file_path),
         'parents': [folder_id]
     }
     media = MediaFileUpload(file_path, mimetype='image/png')
 
-    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-    image_url = f"https://drive.google.com/uc?id={file.get('id')}"
-    
-    print(f"Uploaded file: {image_url}")
-    
-    return image_url
+    try:
+        # Tải ảnh lên Google Drive
+        file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        file_id = file.get('id')
+
+        # Cấp quyền công khai cho tệp
+        set_permissions(service, file_id)
+
+        # Tạo và trả về URL tải xuống
+        image_url = f"https://drive.google.com/uc?id={file_id}"
+        print(f"[SUCCESS] File uploaded to Drive: {image_url}")
+        return image_url
+    except HttpError as error:
+        print(f"[ERROR] Failed to upload file to Drive: {error}")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during upload: {e}")
+        return None
+
 
 # Hàm lưu dữ liệu vào database
-def save_to_database(data, image_paths, drive_image_paths, loai_hoa_don, company):
-    """
-    Save invoice data to the database, including image paths.
-    """
+def save_to_database(data, image_paths, drive_image_paths, company):
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 for idx, (_, row) in enumerate(data.iterrows()):
-                    image_path = image_paths[idx] if idx < len(image_paths) else None
-                    # Lấy đường dẫn ảnh tương ứng cho dòng này
-                    drive_image_path = drive_image_paths[idx] if idx < len(drive_image_paths) else None
+                    image_path = image_paths[idx] if idx < len(image_paths) else ''
+                    drive_image_path = drive_image_paths[idx] if idx < len(drive_image_paths) else ''
 
+                    # Chuyển đổi số hóa đơn thành chuỗi
+                    so_hoa_don = str(row.get('so_hoa_don', ''))
+
+                    # Thực hiện INSERT với ON CONFLICT
                     invoice_query = """
-                    INSERT INTO invoices (company, loai_hoa_don, mau_so, ky_hieu, so_hoa_don, ngay_lap, tong_tien, trang_thai, image_path, image_drive_path, image_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (so_hoa_don) DO UPDATE
-                    SET company = EXCLUDED.company,
-                        loai_hoa_don = EXCLUDED.loai_hoa_don,
-                        mau_so = EXCLUDED.mau_so,
+                        INSERT INTO data_hoadon (mau_so, ky_hieu, so_hoa_don, ngay_lap, thong_tin_nguoi_ban, thong_tin_hoa_don, 
+                                                tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
+                                                tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                        ON CONFLICT (company, so_hoa_don) DO UPDATE
+                        SET mau_so = EXCLUDED.mau_so,
                         ngay_lap = EXCLUDED.ngay_lap,
-                        tong_tien = EXCLUDED.tong_tien,
+                        thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban,
+                        thong_tin_hoa_don = EXCLUDED.thong_tin_hoa_don,
+                        tong_tien_chua_thue = EXCLUDED.tong_tien_chua_thue,
+                        tong_tien_thue = EXCLUDED.tong_tien_thue,
+                        tong_tien_chiet_khau = EXCLUDED.tong_tien_chiet_khau,
+                        tong_tien_phi = EXCLUDED.tong_tien_phi,
+                        tong_tien_thanh_toan = EXCLUDED.tong_tien_thanh_toan,
+                        don_vi_tien_te = EXCLUDED.don_vi_tien_te,
                         trang_thai = EXCLUDED.trang_thai,
-                        image_path = EXCLUDED.image_path,
                         image_drive_path = EXCLUDED.image_drive_path,
-                        image_data = EXCLUDED.image_data
-                    RETURNING id;
-                    """
+                        created_at = CURRENT_TIMESTAMP;
+                        """
 
-                    image_data = None
-                    if image_path and os.path.exists(image_path):
-                        with open(image_path, 'rb') as img_file:
-                            image_data = img_file.read()
-
+                    # Cập nhật invoice_values để thay thế None bằng chuỗi rỗng
                     invoice_values = (
-                        company,
-                        loai_hoa_don,
-                        row.get('mau_so'),
-                        row.get('ky_hieu'),
-                        row.get('so_hoa_don'),
-                        convert_date(row.get('ngay_lap')),
-                        convert_to_numeric(row.get('tong_tien')),
-                        row.get('trang_thai'),
-                        image_path,
+                        row.get('mau_so', ''),
+                        row.get('ky_hieu', ''),
+                        so_hoa_don,
+                        convert_date(row.get('ngay_lap', '')),
+                        row.get('thong_tin_nguoi_ban', ''),
+                        row.get('thong_tin_hoa_don', ''),
+                        convert_to_numeric(row.get('tong_tien_chua_thue', '')),
+                        convert_to_numeric(row.get('tong_tien_thue', '')),
+                        convert_to_numeric(row.get('tong_tien_chiet_khau', '')),
+                        convert_to_numeric(row.get('tong_tien_phi', '')),
+                        convert_to_numeric(row.get('tong_tien_thanh_toan', '')),
+                        row.get('don_vi_tien_te', ''),
+                        row.get('trang_thai', ''),
                         drive_image_path,
-                        image_data
+                        company 
                     )
 
-                    cur.execute(invoice_query, invoice_values)
-                    invoice_id = cur.fetchone()[0]
+                    # Loại bỏ các giá trị rỗng
+                    invoice_values = [v if v != '' else '' for v in invoice_values]  # Đảm bảo không có giá trị None hay NaN
 
-                    # Handle specific invoice type tables
-                    if loai_hoa_don == "mua_vao":
-                        specific_query = """
-                        INSERT INTO mua_vao (id, company, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_ban)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO UPDATE
-                        SET company = EXCLUDED.company,
-                              ky_hieu = EXCLUDED.ky_hieu,
-                              so_hoa_don = EXCLUDED.so_hoa_don,
-                              tong_tien = EXCLUDED.tong_tien,
-                              image_path = EXCLUDED.image_path,
-                              image_drive_path = EXCLUDED.image_drive_path,
-                              image_data = EXCLUDED.image_data,
-                              thong_tin_nguoi_ban = EXCLUDED.thong_tin_nguoi_ban;
-                        """
-                        specific_values = (
-                            invoice_id,
-                            company,
-                            row.get('ky_hieu'),
-                            row.get('so_hoa_don'),
-                            convert_to_numeric(row.get('tong_tien')),
-                            image_path,
-                            drive_image_path,
-                            image_data,
-                            row.get('thong_tin_nguoi_ban')
-                        )
-                    else:  # ban_ra
-                        specific_query = """
-                        INSERT INTO ban_ra (id, company, ky_hieu, so_hoa_don, tong_tien, image_path, image_drive_path, image_data, thong_tin_nguoi_mua)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO UPDATE
-                        SET company = EXCLUDED.company,
-                              ky_hieu = EXCLUDED.ky_hieu,
-                              so_hoa_don = EXCLUDED.so_hoa_don,
-                              tong_tien = EXCLUDED.tong_tien,
-                              image_path = EXCLUDED.image_path,
-                              image_drive_path = EXCLUDED.image_drive_path,
-                              image_data = EXCLUDED.image_data,
-                              thong_tin_nguoi_mua = EXCLUDED.thong_tin_nguoi_mua;
-                        """
-                        specific_values = (
-                            invoice_id,
-                            company,
-                            row.get('ky_hieu'),
-                            row.get('so_hoa_don'),
-                            convert_to_numeric(row.get('tong_tien')),
-                            image_path,
-                            drive_image_path,
-                            image_data,
-                            row.get('thong_tin_nguoi_mua')
-                        )
-                    
-                    cur.execute(specific_query, specific_values)
-                    
-        print(f"Dữ liệu hóa đơn {loai_hoa_don} đã được lưu thành công.")
-        send_slack_notification(f'[SUCCESS] Chương trình đã đưa dữ liệu {loai_hoa_don} lên database', webhook_url)
+                    cur.execute(invoice_query, invoice_values)
+
+        print(f"Dữ liệu hóa đơn đã được lưu thành công.")
     except Exception as e:
         print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
 
-# Hàm tạo bảng company_information
-def create_company_information_table():
-    query = """
-    CREATE TABLE IF NOT EXISTS company_information (
-        id SERIAL PRIMARY KEY,
-        company VARCHAR(255) NOT NULL,
-        hoadon_username VARCHAR(255) NOT NULL UNIQUE,
-        hoadon_password VARCHAR(255) NOT NULL
-    );
-    """
-    try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                conn.commit()
-                print("Table 'company_information' created successfully.")
-    except Exception as e:
-        print(f"Error creating table 'company_information': {e}")
-
-def add_company(company, username, password):
-    query = """
-    INSERT INTO company_information (company, hoadon_username, hoadon_password)
-    VALUES (%s, %s, %s)
-    ON CONFLICT (hoadon_username) DO NOTHING;  -- Không thêm nếu username đã tồn tại
-    """
-    try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, (company, username, password))
-                conn.commit()
-                print(f"Thêm công ty '{company}' thành công!")
-    except Exception as e:
-        print(f"Lỗi khi thêm công ty '{company}': {e}")
-
-def add_company_interactive():
-    """Hàm để người dùng nhập thông tin công ty từ terminal."""
-    print("Nhập thông tin công ty:")
-    try:
-        company = input("Tên công ty: ").strip()
-        username = input("Hóa đơn username: ").strip()
-        password = input("Hóa đơn password: ").strip()
-
-        if not company or not username or not password:
-            print("Vui lòng nhập đầy đủ thông tin.")
-            return
-
-        # Gọi hàm add_company để lưu vào cơ sở dữ liệu
-        add_company(company, username, password)
-    except Exception as e:
-        print(f"Lỗi khi thêm công ty: {e}")
-        
-# Hàm nhập dữ liệu từ file Excel
-def import_company_information_from_excel(excel_file):
-    try:
-        # Đọc dữ liệu từ file Excel
-        data = pd.read_excel(excel_file, engine='openpyxl', dtype={'hoadon_username': str})
-        
-        # Kiểm tra các cột cần thiết
-        required_columns = {'company', 'hoadon_username', 'hoadon_password'}
-        if not required_columns.issubset(data.columns):
-            raise ValueError(f"Excel file must contain columns: {required_columns}")
-        
-        # Kết nối cơ sở dữ liệu và thêm dữ liệu vào bảng
-        with psycopg2.connect(**DB_CONFIG) as conn:
-            with conn.cursor() as cur:
-                for _, row in data.iterrows():
-                    cur.execute("""
-                        INSERT INTO company_information (company, hoadon_username, hoadon_password)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT DO NOTHING;
-                    """, (row['company'], row['hoadon_username'], row['hoadon_password']))
-                conn.commit()
-                print(f"Data from '{excel_file}' imported successfully.")
-    except Exception as e:
-        print(f"Error importing data into 'company_information': {e}")
-
-
-# Hàm lấy dữ liệu từ bảng company_information
-def fetch_company_information():
-    query = "SELECT company, hoadon_username, hoadon_password FROM company_information;"
-    try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
-            with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(query)
-                rows = cur.fetchall()
-                return rows 
-    except Exception as e:
-        print(f"Error fetching data from 'company_information': {e}")
-        return []
-  
-# Hàm thiết lập biến môi trường từ dữ liệu
-def set_environment_variables(company, username, password):
-    os.environ['HOADON_COMPANY'] = company
-    os.environ['HOADON_USERNAME'] = username
-    os.environ['HOADON_PASSWORD'] = password
-    print(f"Environment variables set: HOADON_COMPANY={company}, HOADON_USERNAME={username}, HOADON_PASSWORD={password}")
-    print(f"Bắt đầu crawl data công ty: {company}")
-
-
-
-
-
-
-
 # Quy trình database chính
-def main_db_workflow(company, username, password):
+def main_db_workflow(service, company, username, password):
     # Tạo bảng nếu chưa tồn tại
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(CREATE_TABLE_QUERY)
+            cur.execute(ADD_FOREIGN_KEY_QUERY)
 
     # Get latest files for both types
     mua_vao_csv, mua_vao_images = get_latest_files_by_timestamp(
@@ -1349,9 +1236,9 @@ def main_db_workflow(company, username, password):
         "hoa_don_ban_ra*.csv", 
         "hoadon_banra_chitiet_stt_*.png"
     )
-
+    
     # Tạo thư mục trên Google Drive
-    main_folder_id, subfolder_id = create_invoice_directory_on_drive(company, username, password)
+    main_folder_id, subfolder_id = create_invoice_directory_on_drive(service, company)
 
     # Process mua vao
     if mua_vao_csv:
@@ -1362,24 +1249,26 @@ def main_db_workflow(company, username, password):
             'Ký hiệuhóa đơn': 'ky_hieu',
             'Số hóa đơn': 'so_hoa_don',
             'Ngày lập': 'ngay_lap',
-            'Thông tin người bán': 'thong_tin_nguoi_ban',
-            'Tổng tiềnthanh toán': 'tong_tien',
+            'Thông tin người bán': 'thong_tin_nguoi_ban', # File hóa đơn mua vào
+            'Tổng tiềnchưa thuế': 'tong_tien_chua_thue',
+            'Tổng tiền thuế': 'tong_tien_thue',
+            'Tổng tiềnchiết khấuthương mại': 'tong_tien_chiet_khau',
+            'Tổng tiền phí': 'tong_tien_phi',
+            'Tổng tiềnthanh toán': 'tong_tien_thanh_toan',
+            'Đơn vịtiền tệ': 'don_vi_tien_te',
             'Trạng tháihóa đơn': 'trang_thai'
         }, inplace=True)
-        
-        if 'thong_tin_nguoi_ban' not in data.columns:
-            data['thong_tin_nguoi_ban'] = None
-        
+
         # Tải ảnh lên Google Drive
         drive_image_paths = []
         for image_path in mua_vao_images:
             if os.path.exists(image_path):
-                drive_image_path = upload_image_to_drive(image_path, subfolder_id)
+                drive_image_path = upload_image_to_drive(service, image_path, subfolder_id)
                 drive_image_paths.append(drive_image_path)
                 print(f"Uploaded image to Drive: {drive_image_path}")
 
-        # Lưu dữ liệu vào cơ sở dữ liệu
-        save_to_database(data, mua_vao_images, drive_image_paths, "mua_vao", company)
+        # Lưu dữ liệu vào cơ sở dữ liệu với tên công ty
+        save_to_database(data, mua_vao_images, drive_image_paths, company)
         print(f"Processed mua vao data from {mua_vao_csv}")
 
     # Process ban ra
@@ -1391,154 +1280,188 @@ def main_db_workflow(company, username, password):
             'Ký hiệuhóa đơn': 'ky_hieu',
             'Số hóa đơn': 'so_hoa_don',
             'Ngày lập': 'ngay_lap',
-            'Thông tin hóa đơn': 'thong_tin_nguoi_mua',
+            'Thông tin hóa đơn': 'thong_tin_hoa_don',  # File hóa đơn bán ra
+            'Tổng tiềnchưa thuế': 'tong_tien_chua_thue',
+            'Tổng tiền thuế': 'tong_tien_thue',
+            'Tổng tiềnchiết khấuthương mại': 'tong_tien_chiet_khau',
+            'Tổng tiền phí': 'tong_tien_phi',
             'Tổng tiềnthanh toán': 'tong_tien',
+            'Đơn vịtiền tệ': 'don_vi_tien_te',
             'Trạng tháihóa đơn': 'trang_thai'
         }, inplace=True)
-        
-        if 'thong_tin_nguoi_mua' not in data.columns:
-            data['thong_tin_nguoi_mua'] = None
-            
+
         # Tải ảnh lên Google Drive
         drive_image_paths = []
         for image_path in ban_ra_images:
             if os.path.exists(image_path):
-                drive_image_path = upload_image_to_drive(image_path, subfolder_id)
+                drive_image_path = upload_image_to_drive(service, image_path, subfolder_id)
                 drive_image_paths.append(drive_image_path)
                 print(f"Uploaded image to Drive: {drive_image_path}")
 
-        # Lưu dữ liệu vào cơ sở dữ liệu
-        save_to_database(data, ban_ra_images, drive_image_paths, "ban_ra", company)
+        # Lưu dữ liệu vào cơ sở dữ liệu với tên công ty
+        save_to_database(data, ban_ra_images, drive_image_paths, company)
         print(f"Processed ban ra data from {ban_ra_csv}")
 
-    # Fetch and verify saved images
-#     fetch_image_data('mua_vao')
-#     fetch_image_data('ban_ra')
+# Hàm lấy dữ liệu từ bảng company_information
+def fetch_company_information():
+    query = "SELECT company, hoadon_username, hoadon_password FROM company_information;"
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query)
+                rows = cur.fetchall()
 
+                # Lọc các công ty không có username hoặc password
+                filtered_rows = [
+                    row for row in rows 
+                    if row['hoadon_username'] and row['hoadon_password']
+                ]
+                
+                return filtered_rows 
+    except Exception as e:
+        print(f"Error fetching data from 'company_information': {e}")
+        return []
+  
 
-# Hàm chính xử lý từng công ty
-def process_company_data(driver, company, username, password, captcha_image_path, output_file, output_file_ra):
-      try:
-            
-            # Thiết lập biến môi trường
-            set_environment_variables(company, username, password)
-            # Đăng nhập cho công ty
-            
-                  
-            print(f"Đăng nhập lần đầu cho công ty: {company}")
-            login_to_thuedientu(driver, username, password, company)
-            
-            crawl_img(driver)
-            enter_verification_code(driver, captcha_image_path)
-            submit_form(driver, captcha_image_path)
-            crawl_hoa_don_mua_vao(driver)
-            extract_table_mua_vao_to_csv(driver, output_file)
-            extract_img_hoa_don_mua_vao(driver)
-            crawl_hoa_don_ban_ra(driver)
-            extract_table_ban_ra_to_csv(driver, output_file_ra)
-            extract_img_hoa_don_ban_ra(driver)
-            main_db_workflow(company, username, password)
+def clean_data(directory_path=".", file_extensions=(".csv", ".png")):
+    """
+    Xóa tất cả các file dữ liệu trong thư mục được chỉ định có phần mở rộng cụ thể.
+    
+    Args:
+        directory_path (str): Đường dẫn đến thư mục chứa file dữ liệu. Mặc định là thư mục hiện tại.
+        file_extensions (tuple): Các phần mở rộng của file cần xóa. Mặc định là ('.csv', '.pdf').
+    
+    Returns:
+        None
+    """
+    try:
+        files_removed = 0
+        for file_name in os.listdir(directory_path):
+            if file_name.endswith(file_extensions):
+                file_path = os.path.join(directory_path, file_name)
+                os.remove(file_path)
+                files_removed += 1
+                print(f"[INFO] Đã xóa file: {file_path}")
+        
+        if files_removed == 0:
+            print(f"[INFO] Không có file nào với đuôi {file_extensions} trong thư mục '{directory_path}' để xóa.")
+        else:
+            print(f"[INFO] Tổng số file đã xóa: {files_removed}")
 
-            print(f"Finished processing data for company: {company}")
-            send_slack_notification(f"Finished processing data for company: {company}", webhook_url)
-      except Exception as e:
-            print(f"Error processing data for company {company}: {e}")
-            send_slack_notification(f"Error processing data for company {company}: {e}", webhook_url)
-
-
-
-
-
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi xóa dữ liệu: {e}")
 # Hàm main 
 def main():
-      """Chạy chương trình chính"""
-      args = parse_arguments()
-      ensure_database_exists(args)
+    """Chạy chương trình chính"""
+    args = parse_arguments()
+    ensure_database_exists(args)
 
-      global DB_CONFIG
-      DB_CONFIG = get_db_config(args)
-      driver = initialize_driver()
+    global DB_CONFIG
+    DB_CONFIG = get_db_config(args)
+    driver = initialize_driver()
 
-      output_file = "hoa_don_mua_vao.csv"
-      output_file_ra = "hoa_don_ban_ra.csv"
-      captcha_image_path = "captcha_image.svg"
-      # excel_file_path = 'company_information.xlsx'
-      
+    service = initialize_drive_service()
+    if not service:
+        print("[ERROR] Google Drive service not initialized. Exiting.")
+        exit(1)
 
-      try:
-            # Tạo bảng và nhập dữ liệu từ Excel
-            create_company_information_table()
-            # add_company_interactive()
-            # import_company_information_from_excel(excel_file_path)
-            
-            # try:
-            #       df = pd.read_excel(excel_file_path)
-            # except Exception as e:
-            #       print(f"Lỗi khi đọc file Excel: {e}")
-            #       return None
-
-            # if df.empty:
-            #       print("Không có dữ liệu trong bảng company_information. Chương trình kết thúc.")
-            # else:
-            #       companies = df["company"].tolist()
-            #       total_companies = len(companies)
-            #       print(f"Tổng số công ty cần xử lý: {total_companies}")
-                  
-            # first_time = True 
-
-            # add_company("Công ty A", "0101652097", "At2025@@@") #Thêm công ty vào bảng
-
-            # Lấy danh sách công ty từ database
-            company_data_list = fetch_company_information()
-            if not company_data_list:
-                  print("Không có công ty nào trong bảng 'company_information'. Chương trình kết thúc.")
-                  return
-            
-            # Xử lý từng công ty
-            for idx, company_data in enumerate(company_data_list, start=1):
-                  company, username, password = (
-                        company_data["company"],
-                        company_data["hoadon_username"],
-                        company_data["hoadon_password"],
-                  )
-                  print(f"Đang xử lý công ty thứ {idx}: {company}")
-
-                  # Mở tab mới
-                  driver.execute_script("window.open('');")
-                  new_tab = driver.window_handles[-1]
-                  driver.switch_to.window(new_tab)
-                  
-                  
-
-                  # Xử lý công ty
-                  try:
-                        process_company_data(
-                              driver, company, username, password,
-                              captcha_image_path, output_file, output_file_ra
-                        )
-                        # print(f"Hoàn thành xử lý công ty {idx}/{total_companies}.")
-                        print(f"Hoàn thành xử lý công ty {idx}/{company}.")
-                  except Exception as e:
-                        print(f"Lỗi khi xử lý công ty {company}: {e}")
-                        send_slack_notification(f"[FAILED] Lỗi khi xử lý công ty {company}", webhook_url)
-                  finally:
-                        # Đóng tab sau khi xử lý xong
-                        driver.close()
-                        # Quay lại tab đầu tiên (nếu còn tab đầu)
-                        if driver.window_handles:
-                              driver.switch_to.window(driver.window_handles[0])
-                        
-                        # Cập nhật trạng thái đăng nhập lần đầu
-                  # if first_time:
-                  #       first_time = False
-            
-                  
-      except Exception as e:
-            print(f"An error occurred: {e}")
-            send_slack_notification("[FAILED] Chương trình chạy thất bại", webhook_url)
-      finally:
+    output_file = "hoa_don_mua_vao.csv"
+    output_file_ra = "hoa_don_ban_ra.csv"
+    captcha_image_path = "captcha_image.svg"
+    
+    total_companies = 0
+    company_results = {}
+    
+    try:
+        company_data_list = fetch_company_information()
+        if not company_data_list:
+            print("Không có công ty nào để xử lý. Kết thúc chương trình.")
             driver.quit()
-            print("Driver closed.")
+            return
+
+        total_companies = len(company_data_list)
+        print(f"Tổng số công ty cần xử lý: {total_companies}")
+        
+        months_to_crawl = [
+            (datetime.now().replace(day=1) - timedelta(days=30 * (args.months_ago + i + 1))).strftime('%m/%Y')
+            for i in range(args.crawl_months)
+        ]
+        
+        for idx, company_data in enumerate(company_data_list, start=1):
+            company, username, password = (
+                company_data["company"],
+                company_data["hoadon_username"],
+                company_data["hoadon_password"],
+            )
+            print(f"Đang xử lý công ty thứ {idx}: {company}")
+            
+            success_months = []
+            failed_months = []
+            
+            driver.execute_script("window.open('');")
+            new_tab = driver.window_handles[-1]
+            driver.switch_to.window(new_tab)
+            
+            try:
+                login_to_thuedientu(driver, username, password, company)
+                crawl_img(driver)
+                enter_verification_code(driver, captcha_image_path)
+                submit_form(driver, captcha_image_path)
+                
+                for i, month in enumerate(months_to_crawl, start=1):
+                    print(f"Đang cào tháng {month} ({i}/{args.crawl_months})")
+                    try:
+                        navigate_to_first_day_of_month(driver, month)
+                        crawl_hoa_don_mua_vao(driver)
+                        extract_table_mua_vao_to_csv(driver, output_file)
+                        extract_img_hoa_don_mua_vao(driver)
+                        crawl_hoa_don_ban_ra(driver)
+                        extract_table_ban_ra_to_csv(driver, output_file_ra)
+                        extract_img_hoa_don_ban_ra(driver)
+                        main_db_workflow(service, company, username, password)
+                        success_months.append(month)
+                    except Exception as e:
+                        print(f"[ERROR] Thất bại khi xử lý tháng {month} cho công ty {company}: {e}")
+                        failed_months.append(month)
+                        continue
+                
+                company_results[company] = (success_months, failed_months)
+                
+            except Exception as e:
+                print(f"Lỗi khi xử lý công ty {company}: {e}")
+                company_results[company] = ([], months_to_crawl)
+            finally:
+                driver.close()
+                if driver.window_handles:
+                    driver.switch_to.window(driver.window_handles[0])
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        if not any(success for success, fail in company_results.values()):
+            company_results = {company_data["company"]: ([], months_to_crawl) for company_data in company_data_list}
+        clean_data(directory_path=".", file_extensions=(".csv", ".png"))
+        print("\n=========== Báo cáo tổng kết ===========")
+        print(f"Số công ty cần chạy: {total_companies}")
+        print(f"Số tháng cần crawl: {args.crawl_months} ({', '.join(months_to_crawl)})")
+        print(f"Số công ty thành công: {sum(1 for success, fail in company_results.values() if success)}")
+        print(f"Số công ty thất bại: {sum(1 for success, fail in company_results.values() if not success)}")
+        
+        send_slack_notification("\n=========== Báo cáo tổng kết ===========",webhook_url)
+        send_slack_notification(f"Số công ty cần chạy: {total_companies}",webhook_url)
+        send_slack_notification(f"Số tháng cần crawl: {args.crawl_months} ({', '.join(months_to_crawl)})",webhook_url)
+        send_slack_notification(f"Số công ty thành công: {sum(1 for success, fail in company_results.values() if success)}",webhook_url)
+        send_slack_notification(f"Số công ty thất bại: {sum(1 for success, fail in company_results.values() if not success)}",webhook_url)
+        
+        
+        for company, (success_months, failed_months) in company_results.items():
+            success_text = f"Thành công {len(success_months)} tháng" + (f" ({', '.join(success_months)})" if success_months else "")
+            fail_text = f"Thất bại {len(failed_months)} tháng" + (f" ({', '.join(failed_months)})" if failed_months else "")
+            print(f"Công ty {company}: {success_text}, {fail_text}")
+            send_slack_notification(f"Công ty {company}: {success_text}, {fail_text}",webhook_url)
+        driver.quit()
+        print("Driver closed.")
 
 if __name__ == '__main__':
     main()
+
