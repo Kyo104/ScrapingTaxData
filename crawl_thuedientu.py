@@ -25,10 +25,6 @@ import requests
 import json
 
 # =================== BIẾN MÔI TRƯỜNG ===================
-# Mục thông tin đăng nhập Thuế Điện Tử
-THUEDIENTU_USERNAME = "" 
-THUEDIENTU_PASSWORD = "" 
-THUEDIENTU_COMPANY = "" 
 
 # API key cho dịch vụ giải captcha
 API_KEY = "4b9744cc99fd188fb23d1440fbc45639"  
@@ -41,7 +37,7 @@ DB_HOST = "localhost"
 DB_PORT = "5432"  
 
 # URL Webhook Slack mặc định
-WEBHOOK_URL = '#'
+WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
 print('hello thuedientu')
 # ==============================================================================
@@ -49,10 +45,6 @@ print('hello thuedientu')
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
     
-    parser.add_argument('--username', default=THUEDIENTU_USERNAME,
-                       help='Tên đăng nhập cho trang web Thuế điện tử')
-    parser.add_argument('--password', default=THUEDIENTU_PASSWORD,
-                       help='Mật khẩu nhập cho trang web Thuế điện tử')
     parser.add_argument('--api-key', default=API_KEY,
                        help='API key từ trang web autocaptcha để giải captcha')
     parser.add_argument('--db-user', default=DB_USER,
@@ -80,7 +72,7 @@ def initialize_driver():
     chrome_options = Options()
     chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--disable-extensions")
-    #chrome_options.add_argument("--headless=new") # for Chrome >= 109
+    chrome_options.add_argument("--headless=new") # for Chrome >= 109
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--force-device-scale-factor=1")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
@@ -89,6 +81,7 @@ def initialize_driver():
     
     driver.maximize_window()  # Mở trình duyệt ở chế độ toàn màn hình
     time.sleep(2)
+    send_slack_notification('======== Workflow ThueDienTu ==========.', webhook_url)
     return driver
 
 # 1.1 Nhập username và password vào trang web 'thuedientu'
@@ -97,9 +90,11 @@ def login_to_thuedientu(driver, username, password, company):
     url = 'https://thuedientu.gdt.gov.vn/etaxnnt/Request'
     driver.get(url)
     print('- Finish initializing a driver')
-    send_slack_notification('Chương trình đang thực hiện lấy dữ liệu trang thuedientu', webhook_url)
     time.sleep(2)
-
+    
+    print(f'- Đang đăng nhập cho công ty: {company}')
+    send_slack_notification(f'[INFO] Chương trình đang login vào công ty: {company}', webhook_url)
+    
     # Nhấn nút Doanh Nghiệp
     doanh_nghiep_button = driver.find_element(By.XPATH, '//*[@id="bodyP"]/div[1]/div[4]/div/div[2]/div/div[2]/a')
     doanh_nghiep_button.click()
@@ -164,7 +159,7 @@ def save_captcha_image(driver):
         print("[INFO] CAPTCHA đã được lưu tại captcha_image.png")
     except Exception as e:
         print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
-        send_slack_notification('Chương trình chạy thất bại', webhook_url)
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
 
 # Gửi ảnh lên autocaptcha để giải mã
 def solve_captcha(image_base64):
@@ -196,10 +191,11 @@ def solve_captcha(image_base64):
             return response_data["captcha"]
         else:
             print(f"[ERROR] API response indicates failure: {response_data}")
+            send_slack_notification(f'[ERROR] Chương trình chạy thất bại {response_data}', webhook_url)
             return None
     except Exception as e:
         print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
-        send_slack_notification('Chương trình chạy thất bại', webhook_url)
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
         return None
 
 # Xử lý ảnh CAPTCHA và giải mã
@@ -220,7 +216,7 @@ def solve_captcha_from_file(file_path):
         return captcha_text
     except Exception as e:
         print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
-        send_slack_notification('Chương trình chạy thất bại', webhook_url)
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
         return None
 
 # 1.2 Nhập mã CAPTCHA tự động
@@ -248,25 +244,9 @@ def enter_verification_code(driver, captcha_image_path):
         return True
     except Exception as e:
         print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
         return False
 
-# -------------------------------------------------------------------------
-
-# # 1.2 Nhập mã captcha thủ công
-# def enter_verification_code(driver):
-#     """Nhập mã xác nhận."""
-#     # Yêu cầu người dùng nhập mã xác nhận
-#     code = input("Vui lòng nhập mã xác nhận: ")  # Người dùng tự nhập mã xác nhận
-#     # Tìm và nhập Mã xác nhận
-#     verification_code_field = driver.find_element(By.ID, 'vcode')
-#     verification_code_field.send_keys(code)
-#     print('- Finish keying in verification code')
-#     time.sleep(2)
-#     # Log giá trị sau khi nhập
-#     captcha_value = verification_code_field.get_attribute('value')
-#     print(f"[DEBUG] Giá trị Mã xác nhận sau khi nhập: {captcha_value}")
-
-# -----------------------------------------------------------------------------
 
 def retry_user_pass_doituong(driver, username, password):
     # Nhập tên đăng nhập
@@ -300,7 +280,7 @@ def submit_form(driver, username, password, captcha_image_path):
             submit_button = driver.find_element(By.XPATH, '//*[@id="dangnhap"]')
             submit_button.click()
             print(f'- Finish submitting the form (attempt {attempt})')
-            send_slack_notification(f'Chương trình đang thực hiên login lần {attempt}', webhook_url)
+            send_slack_notification(f'[INFO] Chương trình đang thực hiên login lần {attempt}', webhook_url)
             
             # Kiểm tra nếu có thông báo lỗi CAPTCHA
             try:
@@ -310,7 +290,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 )
                 if error_message:
                     print("[ERROR] Mã xác nhận nhập sai. Đang thử lại...")
-                    send_slack_notification('Login thất bại, đang thử lại', webhook_url)
+                    send_slack_notification('[ERROR] Login thất bại, đang thử lại', webhook_url)
                     # Nhập lại các trường thông tin
                     retry_user_pass_doituong(driver, username, password)
                     
@@ -336,7 +316,7 @@ def submit_form(driver, username, password, captcha_image_path):
                 )
                 if tra_cuu_element:
                     print("[INFO] Đăng nhập thành công! Đã vào trang chính.")
-                    send_slack_notification('Chương trình đã login thành công vào trang thuedientu', webhook_url)
+                    send_slack_notification('[SUCCESS] Đăng nhập thành công! Đã vào trang chính.', webhook_url)
                     return  # Thoát khỏi hàm khi thành công
             except TimeoutException:
                 print("[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại...")
@@ -346,7 +326,7 @@ def submit_form(driver, username, password, captcha_image_path):
             break
     except Exception as e:
         print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
-        send_slack_notification('Chương trình chạy thất bại', webhook_url)
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
     
 # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
 def get_unique_filename(base_filename):
@@ -400,7 +380,6 @@ def save_to_excel_with_style(df, file_name):
     # Lưu file
     workbook.save(unique_file_name)
     print(f"Dữ liệu đã được lưu vào file Excel: {file_name}")
-    send_slack_notification(f'Chương trình đã lưu thành công file {file_name}', webhook_url)
     # Trả về tên file để điều chỉnh kích thước cột
     return unique_file_name
     
@@ -501,12 +480,17 @@ def crawl(driver):
 
         for row in rows[2:]:  # Bỏ qua 2 dòng đầu tiên
             cells = row.find_all('td')  # Lấy tất cả các ô dữ liệu trong một dòng
-            row_data = [cell.get_text(strip=True) for cell in cells]  # Lấy văn bản trong ô
-            elements.append(row_data)
+            row_data = [cell.get_text(strip=True) for cell in cells]
+
+            if len(row_data) > 1:  # Đảm bảo có dữ liệu và có ít nhất 2 cột (tránh lỗi index)
+                elements.append(row_data[1:])  # Bỏ cột đầu tiên (STT)
 
         # Lấy tiêu đề cột từ bảng
         world_titles = table.find_all('span')
         world_table_titles = [title.text.strip() for title in world_titles]
+
+        if len(world_table_titles) > 1:
+            world_table_titles = world_table_titles[1:]  # Bỏ cột STT trong tiêu đề
 
         # Chỉ giữ các tiêu đề và dữ liệu đến "Tính chất khoản nộp"
         try:
@@ -523,9 +507,10 @@ def crawl(driver):
     else:
         print("Không tìm thấy bảng với id 'data_content_onday'.")
         df = pd.DataFrame()  # Trả về DataFrame rỗng nếu không tìm thấy bảng
-        send_slack_notification('Chương trình chạy thất bại', webhook_url)
+        send_slack_notification('[ERROR] Chương trình chạy thất bại', webhook_url)
 
     return df
+
 
 # 2.2 Lưu và xứ lý dữ liệu vào database PostgreSQL
 def create_and_connect_to_database(db_name, user, password, host='localhost', port='5432'):
@@ -556,7 +541,7 @@ def create_and_connect_to_database(db_name, user, password, host='localhost', po
         print(f"Lỗi khi tạo hoặc kết nối đến database: {e}")
         return None
 
-# Hàm đọc file Excel và tải dữ liệu lên PostgreSQL
+
 def upload_excel_to_postgres(db_config, company):
     try:
         # Tìm tất cả các file Excel với pattern data_thue_dien_tu*.xlsx
@@ -573,14 +558,14 @@ def upload_excel_to_postgres(db_config, company):
         engine = create_engine(
             f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
         )
-        
+
         # Đọc file Excel mới nhất
         data = pd.read_excel(latest_file)
 
-        # Đổi tên cột sang định dạng chuẩn
+        # Đổi tên cột và loại bỏ cột `stt`
         data.columns = [
-            "stt", "thu_tu_thanh_toan", "co_quan_thu", "loai_nghia_vu", 
-            "so_tham_chieu", "id_khoan_phai_nop", "so_quyet_dinh", 
+            "thu_tu_thanh_toan", "co_quan_thu", "loai_nghia_vu", 
+            "so_tham_chieu", "id_khoan_phai_nop", "so_quyet_dinh_so_thong_bao", 
             "ky_thue", "ngay_quyet_dinh", "tieu_muc", "so_tien", 
             "loai_tien", "ma_chuong", "dbhc", "han_nop_ngay", 
             "so_tien_da_nop", "trang_thai", "tinh_chat_khoan_nop"
@@ -592,19 +577,18 @@ def upload_excel_to_postgres(db_config, company):
         # Thêm cột mới
         data['created_at'] = pd.to_datetime('now')
         data['company'] = company
-        
+
         # Tạo bảng data_thuedt nếu chưa tồn tại
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS data_thuedt (
                     id SERIAL PRIMARY KEY,
-                    stt VARCHAR,
                     thu_tu_thanh_toan VARCHAR,
                     co_quan_thu VARCHAR,
                     loai_nghia_vu VARCHAR,
                     so_tham_chieu VARCHAR,
-                    id_khoan_phai_nop VARCHAR,
-                    so_quyet_dinh VARCHAR,
+                    id_khoan_phai_nop VARCHAR NOT NULL,
+                    so_quyet_dinh_so_thong_bao VARCHAR,
                     ky_thue VARCHAR,
                     ngay_quyet_dinh VARCHAR,
                     tieu_muc VARCHAR,
@@ -617,12 +601,13 @@ def upload_excel_to_postgres(db_config, company):
                     trang_thai VARCHAR,
                     tinh_chat_khoan_nop VARCHAR,
                     created_at TIMESTAMP,
-                    company VARCHAR
+                    company VARCHAR NOT NULL,
+                    UNIQUE (id_khoan_phai_nop, company)
                 );
             """))
             print("Đã kiểm tra và tạo bảng data_thuedt trong database.")
 
-            # Kiểm tra và tạo khóa chính, khóa ngoại
+            # Kiểm tra và tạo khóa ngoại company nếu chưa tồn tại
             try:
                 conn.execute(text("""
                     ALTER TABLE data_thuedt
@@ -636,23 +621,46 @@ def upload_excel_to_postgres(db_config, company):
                 else:
                     raise e
 
-        # Lưu tất cả dữ liệu vào bảng
+        # Lưu dữ liệu vào bảng, xử lý trùng lặp
         with engine.begin() as conn:
             for _, row in data.iterrows():
                 row_data = row.to_dict()
                 conn.execute(text("""
-                    INSERT INTO data_thuedt (stt, thu_tu_thanh_toan, co_quan_thu, loai_nghia_vu,
-                                              so_tham_chieu, id_khoan_phai_nop, so_quyet_dinh,
-                                              ky_thue, ngay_quyet_dinh, tieu_muc, so_tien,
-                                              loai_tien, ma_chuong, dbhc, han_nop_ngay,
-                                              so_tien_da_nop, trang_thai, tinh_chat_khoan_nop,
-                                              created_at, company)
-                    VALUES (:stt, :thu_tu_thanh_toan, :co_quan_thu, :loai_nghia_vu,
-                            :so_tham_chieu, :id_khoan_phai_nop, :so_quyet_dinh,
-                            :ky_thue, :ngay_quyet_dinh, :tieu_muc, :so_tien,
-                            :loai_tien, :ma_chuong, :dbhc, :han_nop_ngay,
-                            :so_tien_da_nop, :trang_thai, :tinh_chat_khoan_nop,
-                            :created_at, :company)
+                    INSERT INTO data_thuedt (
+                        thu_tu_thanh_toan, co_quan_thu, loai_nghia_vu, 
+                        so_tham_chieu, id_khoan_phai_nop, so_quyet_dinh_so_thong_bao, 
+                        ky_thue, ngay_quyet_dinh, tieu_muc, so_tien, 
+                        loai_tien, ma_chuong, dbhc, han_nop_ngay, 
+                        so_tien_da_nop, trang_thai, tinh_chat_khoan_nop, 
+                        created_at, company
+                    )
+                    VALUES (
+                        :thu_tu_thanh_toan, :co_quan_thu, :loai_nghia_vu, 
+                        :so_tham_chieu, :id_khoan_phai_nop, :so_quyet_dinh_so_thong_bao, 
+                        :ky_thue, :ngay_quyet_dinh, :tieu_muc, :so_tien, 
+                        :loai_tien, :ma_chuong, :dbhc, :han_nop_ngay, 
+                        :so_tien_da_nop, :trang_thai, :tinh_chat_khoan_nop, 
+                        :created_at, :company
+                    )
+                    ON CONFLICT (id_khoan_phai_nop, company) 
+                    DO UPDATE SET 
+                        thu_tu_thanh_toan = EXCLUDED.thu_tu_thanh_toan,
+                        co_quan_thu = EXCLUDED.co_quan_thu,
+                        loai_nghia_vu = EXCLUDED.loai_nghia_vu,
+                        so_tham_chieu = EXCLUDED.so_tham_chieu,
+                        so_quyet_dinh_so_thong_bao = EXCLUDED.so_quyet_dinh_so_thong_bao,
+                        ky_thue = EXCLUDED.ky_thue,
+                        ngay_quyet_dinh = EXCLUDED.ngay_quyet_dinh,
+                        tieu_muc = EXCLUDED.tieu_muc,
+                        so_tien = EXCLUDED.so_tien,
+                        loai_tien = EXCLUDED.loai_tien,
+                        ma_chuong = EXCLUDED.ma_chuong,
+                        dbhc = EXCLUDED.dbhc,
+                        han_nop_ngay = EXCLUDED.han_nop_ngay,
+                        so_tien_da_nop = EXCLUDED.so_tien_da_nop,
+                        trang_thai = EXCLUDED.trang_thai,
+                        tinh_chat_khoan_nop = EXCLUDED.tinh_chat_khoan_nop,
+                        created_at = EXCLUDED.created_at;
                 """), row_data)
 
         print("Đã tải dữ liệu vào bảng data_thuedt thành công.")
@@ -660,15 +668,6 @@ def upload_excel_to_postgres(db_config, company):
     except Exception as e:
         print(f"Lỗi khi tải dữ liệu lên PostgreSQL: {e}")
         raise e
-
-
-
-def set_environment_variables(company, username, password):
-    """Thiết lập các biến môi trường từ thông tin đăng nhập."""
-    os.environ['THUEDIENTU_COMPANY'] = company
-    os.environ['THUEDIENTU_USERNAME'] = username
-    os.environ['THUEDIENTU_PASSWORD'] = password
-    print(f"Đã thiết lập biến môi trường: THUEDIENTU_COMPANY={company}, THUEDIENTU_USERNAME={username}, THUEDIENTU_PASSWORD={username}")
 
 
 # Hàm lấy dữ liệu từ bảng company_information
@@ -779,20 +778,29 @@ def main():
     driver.quit()  # Đóng WebDriver sau khi xử lý tất cả công ty
 
     # In báo cáo tổng kết
-    print("=========== Báo cáo tổng kết ===========")
+    print("\n=========== Báo cáo tổng kết ===========")
     print(f"Số công ty cần chạy: {total_companies}")
     print(f"Số công ty chạy thành công: {len(successful_companies)}")
     print(f"Số công ty chạy thất bại: {len(failed_companies)}")
 
+    send_slack_notification("\n=========== Báo cáo tổng kết ===========", webhook_url)
+    send_slack_notification(f"Số công ty cần chạy: {total_companies}", webhook_url)
+    send_slack_notification(f"Số công ty chạy thành công: {len(successful_companies)}", webhook_url)
+    send_slack_notification(f"Số công ty chạy thất bại: {len(failed_companies)}", webhook_url)
+    
     if successful_companies:
         print("- Công ty chạy thành công:")
+        send_slack_notification("- Công ty chạy thành công:", webhook_url)
         for company in successful_companies:
             print(f" {company}")
+            send_slack_notification(f" {company}", webhook_url)
 
     if failed_companies:
         print("- Công ty chạy thất bại:")
+        send_slack_notification("- Công ty chạy thất bại:", webhook_url)
         for company in failed_companies:
             print(f" {company}")
+            send_slack_notification(f" {company}", webhook_url)
 
 if __name__ == '__main__':
     main()
