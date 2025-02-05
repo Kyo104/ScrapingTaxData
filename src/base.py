@@ -14,7 +14,9 @@ from googleapiclient.discovery import build
 class base_crawler(ABC):
     def __init__(self):
         # API key từ trang web autocaptcha để giải captcha
-        self.api_key = os.getenv('API_KEY')
+        self.api_key_autocaptcha = os.getenv('API_KEY_AUTOCAPTCHA')  # Dùng cho thuedientu, baohiemxahoi
+        self.api_key_anticaptcha = os.getenv('API_KEY_ANTICAPTCHA')  # Dùng cho hoadondientu
+        # self.api_key = os.getenv('API_KEY')
         # PostgreSQL username
         self.db_user = os.getenv('DB_USER')
         self.db_password = os.getenv('DB_PASSWORD')
@@ -66,7 +68,7 @@ class base_crawler(ABC):
     # Khởi tạo dịch vụ Google Drive
     def initialize_drive_service(self):
         """Khởi tạo dịch vụ Google Drive bằng tài khoản dịch vụ."""
-        self.gg_scopes = os.getenv('SCOPES')
+        self.gg_scopes = [os.getenv('SCOPES')]
         self.gg_service_account_file = os.getenv('SERVICE_ACCOUNT_FILE')
         
         try:
@@ -113,6 +115,3 @@ class base_crawler(ABC):
     @abstractmethod
     def main_logic(self):
         pass
-
-
-

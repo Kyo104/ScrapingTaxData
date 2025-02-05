@@ -76,7 +76,7 @@ class crawler_hoaddondientu(base_crawler):
     def parse_arguments(self):
         """Parse command line arguments with environment variables as defaults."""
         parser = argparse.ArgumentParser(description="Hóa đơn điện tử Data Crawler")
-
+        current_date = datetime.now()
         parser.add_argument(
             "--months-ago",
             type=int,
@@ -94,6 +94,8 @@ class crawler_hoaddondientu(base_crawler):
             required=False,
             help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
         )
+        parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
+        parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
 
         self.args = parser.parse_args()
 
@@ -219,7 +221,7 @@ class crawler_hoaddondientu(base_crawler):
     def solve_captcha(self, image_base64):
         url = "https://anticaptcha.top/api/captcha"
         payload = {
-            "apikey": self.api_key,
+            "apikey": self.api_key_anticaptcha,
             "img": image_base64,
             "type": 28,  # Loại captcha, có thể cần thay đổi nếu không đúng
         }
@@ -990,23 +992,14 @@ class crawler_hoaddondientu(base_crawler):
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url
             )
 
-    # Removed
-    # Lưu dữ liệu vào database
-    # def get_db_config(args):
-    #     return {
-    #         'dbname': args.db_name,
-    #         'user': args.db_user,
-    #         'password': args.db_password,
-    #         'host': args.db_host,
-    #         'port': args.db_port
-    #     }
+    
 
     # Hàm kết nối PostgreSQL
     def get_connection(self):
         return psycopg2.connect(**self.db_config)
 
     # Hàm kiểm tra và tạo database nếu chưa tồn tại
-    def ensure_database_exists(self):
+    def ensure_database_exists(self, args):
         try:
             # Kết nối đến database tên "postgres" mặc định để kiểm tra kết nối
             connection = psycopg2.connect(
@@ -1058,20 +1051,7 @@ class crawler_hoaddondientu(base_crawler):
         latest_file = max(files, key=os.path.getmtime)
         return str(latest_file)
 
-    # Purpose?
-    # latest_mua_vao_csv = get_latest_file("hoa_don_mua_vao*.csv")
-    # latest_ban_ra_csv = get_latest_file("hoa_don_ban_ra*.csv")
-    # latest_png_mua = get_latest_file("hoadon_muavao_chitiet_stt_*.png")
-    # latest_png_ban = get_latest_file("hoadon_banra_chitiet_stt_*.png")
-
-    # if latest_mua_vao_csv:
-    #     print(f"Using latest mua vao file: {latest_mua_vao_csv}")
-    # if latest_ban_ra_csv:
-    #     print(f"Using latest ban ra file: {latest_ban_ra_csv}")
-    # if latest_png_mua:
-    #     print(f"Using latest PNG_mua file: {latest_png_mua}")
-    # if latest_png_ban:
-    #     print(f"Using latest PNG_ban file: {latest_png_ban}")
+    
 
     def get_latest_files_by_timestamp(self, csv_pattern, img_pattern):
         """
@@ -1410,7 +1390,7 @@ class crawler_hoaddondientu(base_crawler):
             print(f"Error fetching data from 'company_information': {e}")
             return []
 
-    def clean_data(directory_path=".", file_extensions=(".csv", ".png")):
+    def clean_data(self, directory_path=".", file_extensions=(".csv", ".png")):
         """
         Xóa tất cả các file dữ liệu trong thư mục được chỉ định có phần mở rộng cụ thể.
 
@@ -1453,7 +1433,7 @@ class crawler_hoaddondientu(base_crawler):
             "host": self.db_host,
             "port": self.db_port,
         }
-        driver = self.initialize_driver('Workflow HoaDonDienTu.')
+        driver = self.initialize_driver('======== Workflow HoaDonDienTu ==========.')
 
         service = self.initialize_drive_service()
         if not service:
@@ -1543,7 +1523,7 @@ class crawler_hoaddondientu(base_crawler):
                     company_data["company"]: ([], months_to_crawl)
                     for company_data in company_data_list
                 }
-            self.clean_data(directory_path=".", file_extensions=(".csv", ".png"))
+            
             print("\n=========== Báo cáo tổng kết ===========")
             print(f"Số công ty cần chạy: {total_companies}")
             print(
@@ -1586,5 +1566,6 @@ class crawler_hoaddondientu(base_crawler):
                 self.send_slack_notification(
                     f"Công ty {company}: {success_text}, {fail_text}", self.webhook_url
                 )
+            self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")

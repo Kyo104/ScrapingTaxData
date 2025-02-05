@@ -40,11 +40,25 @@ class crawler_baohiemxahoi(base_crawler):
 
         self.parser = argparse.ArgumentParser(description="BHXH Data Crawler")
         
-        # self.parser.add_argument("--username", default="", required=False, help="Tên đăng nhập cho trang bảo hiểm xã hội")
-        # self.parser.add_argument("--password", default="", required=False, help="Mật khẩu cho trang bảo hiểm xã hội")
-        # self.parser.add_argument("--company", default="", required=False, help="Tên công ty cho trang web Bảo hiểm xã hội")
         self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
         self.parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
+        self.parser.add_argument(
+            "--months-ago",
+            type=int,
+            default=0,
+            required=False,
+            help="Số tháng cần quay lại từ tháng hiện tại. "
+            "0: Tháng hiện tại, "
+            "1: Lùi về 1 tháng",
+        )
+
+        self.parser.add_argument(
+            "--crawl-months",
+            type=int,
+            default=1,
+            required=False,
+            help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
+        )
         return self.parser.parse_args()
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
@@ -149,7 +163,7 @@ class crawler_baohiemxahoi(base_crawler):
         """Gửi ảnh base64 lên autocaptcha và nhận mã CAPTCHA."""
         url = "https://autocaptcha.pro/api/captcha"
         payload = {
-            "apikey": self.api_key,
+            "apikey": self.api_key_autocaptcha,
             "img": image_base64,
             "type": 14  # Loại captcha, có thể cần thay đổi nếu không đúng
         }
@@ -653,13 +667,7 @@ class crawler_baohiemxahoi(base_crawler):
         except Exception as e:
             print(f"[ERROR] Lỗi khi xóa dữ liệu: {e}")
 
-    # Set environment variables for??
-    # def set_environment_variables(self, company, username, password):
-    #     """Thiết lập các biến môi trường từ thông tin đăng nhập."""
-    #     os.environ['BHXH_COMPANY'] = company
-    #     os.environ['BHXH_USERNAME'] = username
-    #     os.environ['BHXH_PASSWORD'] = password
-    #     print(f"Đã thiết lập biến môi trường: BHXH_COMPANY={company}, BHXH_USERNAME={username}, BHXH_PASSWORD={password}")
+    
 
     def main_logic(self):
         print('=============')
@@ -667,7 +675,7 @@ class crawler_baohiemxahoi(base_crawler):
         captcha_image_path = "captcha_image.png"
 
         # Khởi tạo trình duyệt
-        self.driver = self.initialize_driver('Workflow BaoHiemXaHoi.')
+        self.driver = self.initialize_driver('======== Workflow BaoHiemXaHoi ==========')
         engine = self.create_and_connect_to_database()
 
         # Lấy danh sách công ty từ database
@@ -691,8 +699,7 @@ class crawler_baohiemxahoi(base_crawler):
                 company_data["bhxh_password"],
             )
 
-            # Purpose??
-            # self.set_environment_variables(company, username, password)
+            
 
             max_month = int(args.month)
             months_to_run = list(range(1, max_month + 1))
