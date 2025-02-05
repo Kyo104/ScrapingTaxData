@@ -667,7 +667,7 @@ class crawler_baohiemxahoi(base_crawler):
         captcha_image_path = "captcha_image.png"
 
         # Khởi tạo trình duyệt
-        self.driver = self.initialize_driver()
+        self.driver = self.initialize_driver('Workflow BaoHiemXaHoi.')
         engine = self.create_and_connect_to_database()
 
         # Lấy danh sách công ty từ database

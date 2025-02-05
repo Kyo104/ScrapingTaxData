@@ -7,6 +7,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 
 class base_crawler(ABC):
@@ -38,7 +40,7 @@ class base_crawler(ABC):
         except:
             pass
 
-    def initialize_driver(self):
+    def initialize_driver(self, work_flow_str=''):
             """Khởi tạo trình duyệt Chrome."""
             self.chrome_options = Options()
             self.chrome_options.add_argument("--headless=new") # for Chrome >= 109
@@ -51,13 +53,37 @@ class base_crawler(ABC):
             self.chrome_options.add_argument("--disable-blink-features=AutomationControlled") 
             self.chrome_options.add_argument("--disable-extensions")  
             self.chrome_options.add_argument("--enable-javascript")
-
+            # For HDDT
+            self.chrome_options.add_argument("--ignore-certificate-errors")
+            
             self.driver = webdriver.Chrome(options=self.chrome_options)
             self.driver.maximize_window() 
             time.sleep(5)
-            self.send_slack_notification('Workflow Baohiemxahoi', self.webhook_url)
-            return self.driver
+            self.send_slack_notification(work_flow_str, self.webhook_url)           
 
+            return self.driver
+        
+    # Khởi tạo dịch vụ Google Drive
+    def initialize_drive_service(self):
+        """Khởi tạo dịch vụ Google Drive bằng tài khoản dịch vụ."""
+        self.gg_scopes = os.getenv('SCOPES')
+        self.gg_service_account_file = os.getenv('SERVICE_ACCOUNT_FILE')
+        
+        try:
+            if not self.gg_service_account_file or not os.path.exists(self.gg_service_account_file):
+                raise FileNotFoundError(f"[ERROR] Service account file not found: {self.gg_service_account_file}")
+            
+            creds = service_account.Credentials.from_service_account_file(self.gg_service_account_file, scopes=self.gg_scopes)
+            service = build('drive', 'v3', credentials=creds)
+            print("[SUCCESS] Initialized Google Drive service.")
+            return service
+        except FileNotFoundError as e:
+            print(e)
+            return None
+        except Exception as e:
+            print(f"[ERROR] Failed to initialize Google Drive service: {e}")
+            return None
+    
     # Hàm tạo và kết nối đến database PostgreSQL
     def create_and_connect_to_database(self):
         """Tạo một database mới nếu chưa tồn tại và kết nối đến nó."""
