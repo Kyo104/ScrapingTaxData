@@ -1,32 +1,23 @@
 from .base import base_crawler
 import datetime
 import glob
-import psycopg2
+import time
+import pandas as pd
+import os
+import requests
+import base64
+import pdfplumber
+import argparse
+
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import pandas as pd
-from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
-import time
-from selenium.webdriver.chrome.options import Options
-from openpyxl import load_workbook
-from selenium.webdriver.common.keys import Keys
-import pandas as pd
-import numpy as np
-import os
-import requests
 from PIL import Image
 from io import BytesIO
-import base64
-import pdfplumber
-from sqlalchemy import DateTime, ForeignKey, MetaData, String, create_engine, Column, Table, Integer, inspect, Boolean
+from sqlalchemy import DateTime, MetaData, String, Column, Table, Integer, inspect
 from sqlalchemy.sql import text
-import argparse
-import requests
-import json
-from datetime import datetime
 
 
 class crawler_baohiemxahoi(base_crawler):
