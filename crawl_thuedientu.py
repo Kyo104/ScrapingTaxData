@@ -36,8 +36,9 @@ DB_NAME = "crawling_data"
 DB_HOST = "localhost"  
 DB_PORT = "5432"  
 
+
 # URL Webhook Slack mặc định
-WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+WEBHOOK_URL = 'https://hooks.slack.com/services/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'
 
 print('hello thuedientu')
 # ==============================================================================
@@ -690,6 +691,33 @@ def fetch_company_information(engine):
         print(f"Error fetching data from 'company_information': {e}")
         return []
 
+def clean_data(directory_path=".", file_extensions=(".xlsx")):
+    """
+    Xóa tất cả các file dữ liệu trong thư mục được chỉ định có phần mở rộng cụ thể.
+    
+    Args:
+        directory_path (str): Đường dẫn đến thư mục chứa file dữ liệu. Mặc định là thư mục hiện tại.
+        file_extensions (tuple): Các phần mở rộng của file cần xóa. Mặc định là ('.csv', '.pdf').
+    
+    Returns:
+        None
+    """
+    try:
+        files_removed = 0
+        for file_name in os.listdir(directory_path):
+            if file_name.endswith(file_extensions):
+                file_path = os.path.join(directory_path, file_name)
+                os.remove(file_path)
+                files_removed += 1
+                print(f"[INFO] Đã xóa file: {file_path}")
+        
+        if files_removed == 0:
+            print(f"[INFO] Không có file nào với đuôi {file_extensions} trong thư mục '{directory_path}' để xóa.")
+        else:
+            print(f"[INFO] Tổng số file đã xóa: {files_removed}")
+
+    except Exception as e:
+        print(f"[ERROR] Lỗi khi xóa dữ liệu: {e}")
 
 
 def main():
@@ -776,7 +804,7 @@ def main():
 
     # Đóng tất cả các tab sau khi hoàn tất
     driver.quit()  # Đóng WebDriver sau khi xử lý tất cả công ty
-
+    clean_data(directory_path=".", file_extensions=(".xlsx"))
     # In báo cáo tổng kết
     print("\n=========== Báo cáo tổng kết ===========")
     print(f"Số công ty cần chạy: {total_companies}")
