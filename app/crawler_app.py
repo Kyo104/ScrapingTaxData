@@ -4,7 +4,10 @@ import os
 # Add the src directory to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.crawler_baohiemxahoi import crawler_baohiemxahoi
+from src.crawler_hoadondientu import crawler_hoaddondientu
 
 if __name__ == '__main__':
-    crawler = crawler_baohiemxahoi()
-    crawler.main_logic()
+    crawler_bhxh = crawler_baohiemxahoi()
+    crawler_bhxh.main_logic()
+    crawler_hddt = crawler_hoaddondientu()
+    crawler_hddt.main_logic()

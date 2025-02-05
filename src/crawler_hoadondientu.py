@@ -26,7 +26,7 @@ from pathlib import Path
 from psycopg2.extras import DictCursor
 
 
-class crawler_baohiemxahoi(base_crawler):
+class crawler_hoaddondientu(base_crawler):
     # Class level CONSTANT
     # Tạo bảng nếu chưa tồn tại
     CREATE_TABLE_QUERY = """
