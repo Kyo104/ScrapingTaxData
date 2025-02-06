@@ -1,23 +1,32 @@
 from .base import base_crawler
 import datetime
 import glob
-import time
-import pandas as pd
-import os
-import requests
-import base64
-import pdfplumber
-import argparse
-
+import psycopg2
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import pandas as pd
+from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+import time
+from selenium.webdriver.chrome.options import Options
+from openpyxl import load_workbook
+from selenium.webdriver.common.keys import Keys
+import pandas as pd
+import numpy as np
+import os
+import requests
 from PIL import Image
 from io import BytesIO
-from sqlalchemy import DateTime, MetaData, String, Column, Table, Integer, inspect
+import base64
+import pdfplumber
+from sqlalchemy import DateTime, ForeignKey, MetaData, String, create_engine, Column, Table, Integer, inspect, Boolean
 from sqlalchemy.sql import text
+import argparse
+import requests
+import json
+from datetime import datetime
 
 
 class crawler_baohiemxahoi(base_crawler):
@@ -698,6 +707,7 @@ class crawler_baohiemxahoi(base_crawler):
             print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
             print(f"Tổng Số tháng cần chạy: {len(months_to_run)}")
             print(f"Danh sách các tháng cần chạy: {months_to_run}")
+            self.send_slack_notification(f"Danh sách các tháng cần chạy: {months_to_run}", self.webhook_url)
 
             company_success = 0
             company_failure = 0

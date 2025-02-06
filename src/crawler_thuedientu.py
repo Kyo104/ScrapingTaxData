@@ -1,3 +1,5 @@
+import argparse
+import datetime
 from .base import base_crawler
 import requests
 import pandas as pd
@@ -26,10 +28,30 @@ class crawler_thuedientu(base_crawler):
         # Use init from base class
         super().__init__()
 
-    # def parse_arguments(self):
-    #     parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+    def parse_arguments(self):
+        parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+        
+        current_date = datetime.now()
+        self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
+        self.parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
+        self.parser.add_argument(
+            "--months-ago",
+            type=int,
+            default=0,
+            required=False,
+            help="Số tháng cần quay lại từ tháng hiện tại. "
+            "0: Tháng hiện tại, "
+            "1: Lùi về 1 tháng",
+        )
 
-    #     return parser.parse_args()
+        self.parser.add_argument(
+            "--crawl-months",
+            type=int,
+            default=1,
+            required=False,
+            help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
+        )
+        return parser.parse_args()
 
     # task 1 Đăng nhập vào website https://thuedientu.gdt.gov.vn/etaxnnt/Request
 
@@ -708,9 +730,7 @@ class crawler_thuedientu(base_crawler):
             "database": self.db_name,
         }
 
-        engine = self.create_and_connect_to_database(
-            self.db_name, self.db_user, self.db_password, self.db_host, self.db_port
-        )
+        engine = self.create_and_connect_to_database()
 
         # Lấy danh sách công ty từ cơ sở dữ liệu
         company_data_list = self.fetch_company_information(engine)
@@ -724,7 +744,7 @@ class crawler_thuedientu(base_crawler):
         print(f"\nTổng số công ty cần xử lý: {total_companies}")
 
         # Initialize webdriver
-        driver = self.initialize_driver("Workflow ThueDienTu.")
+        driver = self.initialize_driver("======== Workflow ThueDienTu ==========.")
         captcha_image_path = "captcha_image.png"
 
         successful_companies = []

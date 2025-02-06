@@ -16,7 +16,6 @@ class base_crawler(ABC):
         # API key từ trang web autocaptcha để giải captcha
         self.api_key_autocaptcha = os.getenv('API_KEY_AUTOCAPTCHA')  # Dùng cho thuedientu, baohiemxahoi
         self.api_key_anticaptcha = os.getenv('API_KEY_ANTICAPTCHA')  # Dùng cho hoadondientu
-        # self.api_key = os.getenv('API_KEY')
         # PostgreSQL username
         self.db_user = os.getenv('DB_USER')
         self.db_password = os.getenv('DB_PASSWORD')
