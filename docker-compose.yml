@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  crawler:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: crawler_app
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    env_file:
+      - .env  
+
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: crawler
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  jenkins_home:
+  postgres_data:
