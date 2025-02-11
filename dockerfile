@@ -15,10 +15,11 @@ RUN apt-get update && \
     python3.12-venv \
     python3.12-dev \
     openjdk-8-jdk \
-    libcairo2 \
+    # Add Cairo dependencies here
+    libcairo2-dev \
     libpango1.0-dev \
     libgdk-pixbuf2.0-dev \
-    libffi-dev \
+    shared-mime-info \
     && apt-get clean
 
 # Install Chrome & ChromeDriver
