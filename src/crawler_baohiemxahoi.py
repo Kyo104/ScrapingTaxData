@@ -480,20 +480,25 @@ class crawler_baohiemxahoi(base_crawler):
     # 2. Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
     def crawl(self, company, month, year):
         try:
+            wait = WebDriverWait(self.driver, 10)  # Thêm WebDriverWait
+            
             # Nhấn nút tra cứu Hồ sơ
-            tra_cuu_button = self.driver.find_element(By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')
+            tra_cuu_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')))
             tra_cuu_button.click()
             print("- Finish click Tra cứu Hồ sơ")
             time.sleep(3)
 
+            # Đợi overlay biến mất trước khi nhấn tiếp
+            wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "backdrop")))
+
             # Nhấn nút Tra cứu C12
-            tra_cuu_c12_button = self.driver.find_element(By.XPATH,"/html/body/app-root/app-portal/div/app-siderbar/div/div/ul/li[9]/a/span/span",)
+            tra_cuu_c12_button = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/app-root/app-portal/div/app-siderbar/div/div/ul/li[9]/a/span/span")))
             tra_cuu_c12_button.click()
             print("- Finish click Tra cứu C12")
             time.sleep(3)
 
             # Nhấn vào nút sổ các tháng cần tra cứu
-            du_lieu_button = self.driver.find_element(By.CLASS_NAME, "mat-select-arrow-wrapper")
+            du_lieu_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "mat-select-arrow-wrapper")))
             du_lieu_button.click()
             print("- Finish click các tháng cần tra cứu")
             time.sleep(3)
@@ -503,7 +508,7 @@ class crawler_baohiemxahoi(base_crawler):
             self.find_year(year)
 
             # Nhấn vào nút Tra cứu
-            du_lieu_button = self.driver.find_element(By.CLASS_NAME, "mat-raised-button")
+            du_lieu_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "mat-raised-button")))
             du_lieu_button.click()
             print("- Finish click nút Tra cứu")
             time.sleep(10)
@@ -745,7 +750,7 @@ class crawler_baohiemxahoi(base_crawler):
                         for handle in self.driver.window_handles:
                             if handle != current_tab:
                                 self.driver.switch_to.window(handle)
-                                self.driver.close()
+                                self.driver.execute_script("window.close();")
                         self.driver.switch_to.window(current_tab)
 
                     except Exception as e:
