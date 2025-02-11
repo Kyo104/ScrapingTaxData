@@ -1434,7 +1434,7 @@ class crawler_hoaddondientu(base_crawler):
             "port": self.db_port,
         }
         driver = self.initialize_driver()
-        self.send_slack_notification("======== Workflow BaoHiemXaHoi ==========", self.webhook_url_bhxh)
+        self.send_slack_notification("======== Workflow HoaDonDienTu ==========", self.webhook_url_hddt)
 
         service = self.initialize_drive_service()
         if not service:
