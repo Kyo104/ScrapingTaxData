@@ -1,28 +1,37 @@
-version: '3.8'
+version: '3.8'  
 
 services:
   crawler:
     build:
       context: .
       dockerfile: dockerfile
+    privileged: true
     container_name: crawler_app
+    deploy:
+      resources:
+        limits:
+          cpus: "2" 
+          memory: "4G" 
+        reservations:
+          cpus: "2" 
+          memory: "4G"
     depends_on:
       - postgres
     networks:
       - app-network
     environment:
-      SCOPES: "${SCOPES}"
-      SERVICE_ACCOUNT_FILE: "${SERVICE_ACCOUNT_FILE}"
-      API_KEY_AUTOCAPTCHA: "${API_KEY_AUTOCAPTCHA}"
-      API_KEY_ANTICAPTCHA: "${API_KEY_ANTICAPTCHA}"
-      DB_USER: "${DB_USER}"
-      DB_PASSWORD: "${DB_PASSWORD}"
-      DB_NAME: "${DB_NAME}"
-      DB_HOST: "${DB_HOST}"
-      DB_PORT: "${DB_PORT}"
-      WEBHOOK_URL_BHXH: "${WEBHOOK_URL_BHXH}"
-      WEBHOOK_URL_THUEDT: "${WEBHOOK_URL_THUEDT}"
-      WEBHOOK_URL_HDDT: "${WEBHOOK_URL_HDDT}"
+      - SCOPES=${SCOPES}
+      - SERVICE_ACCOUNT_FILE=${SERVICE_ACCOUNT_FILE}
+      - API_KEY_AUTOCAPTCHA=${API_KEY_AUTOCAPTCHA}
+      - API_KEY_ANTICAPTCHA=${API_KEY_ANTICAPTCHA}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - WEBHOOK_URL_BHXH=${WEBHOOK_URL_BHXH}
+      - WEBHOOK_URL_THUEDT=${WEBHOOK_URL_THUEDT}
+      - WEBHOOK_URL_HDDT=${WEBHOOK_URL_HDDT}
 
   jenkins:
     image: jenkins/jenkins:lts
@@ -43,7 +52,7 @@ services:
       POSTGRES_PASSWORD: "${DB_PASSWORD}"
       POSTGRES_DB: "${DB_NAME}"
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
