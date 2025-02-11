@@ -15,7 +15,6 @@ RUN apt-get update && \
     python3.12-venv \
     python3.12-dev \
     openjdk-8-jdk \
-    # Add Cairo dependencies here
     libcairo2-dev \
     libpango1.0-dev \
     libgdk-pixbuf2.0-dev \
@@ -56,4 +55,5 @@ RUN google-chrome --version
 RUN chromedriver --version
 
 # Set default command
-CMD ["bash"]
+RUN java -jar app/eSignerJava/eSignerJava.jar &
+CMD ["tail", "-f", "/dev/null"]
