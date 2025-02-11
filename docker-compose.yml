@@ -10,6 +10,19 @@ services:
       - postgres
     networks:
       - app-network
+    environment:
+      SCOPES: "${SCOPES}"
+      SERVICE_ACCOUNT_FILE: "${SERVICE_ACCOUNT_FILE}"
+      API_KEY_AUTOCAPTCHA: "${API_KEY_AUTOCAPTCHA}"
+      API_KEY_ANTICAPTCHA: "${API_KEY_ANTICAPTCHA}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_NAME: "${DB_NAME}"
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT}"
+      WEBHOOK_URL_BHXH: "${WEBHOOK_URL_BHXH}"
+      WEBHOOK_URL_THUEDT: "${WEBHOOK_URL_THUEDT}"
+      WEBHOOK_URL_HDDT: "${WEBHOOK_URL_HDDT}"
 
   jenkins:
     image: jenkins/jenkins:lts
@@ -26,9 +39,9 @@ services:
     image: postgres:13
     container_name: postgres
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: crawler
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_NAME}"
     ports:
       - "5432:5432"
     volumes:

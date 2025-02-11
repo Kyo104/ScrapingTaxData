@@ -119,7 +119,7 @@ class crawler_hoaddondientu(base_crawler):
         driver.get(url)
         print("- Finish initializing a driver")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty: <{company}>", self.webhook_url
+            f"[INFO] Chương trình đang login vào công ty: <{company}>", self.webhook_url_hddt
         )
         time.sleep(3)
 
@@ -208,13 +208,13 @@ class crawler_hoaddondientu(base_crawler):
                 print("Không tìm thấy ảnh SVG base64 trong src của thẻ img.")
                 self.send_slack_notification(
                     "[ERROR] Workflow crawling data hoadondientu failed",
-                    self.webhook_url,
+                    self.webhook_url_hddt,
                 )
 
         except Exception as e:
             print(f"Đã xảy ra lỗi: {e}")
             self.send_slack_notification(
-                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url
+                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
 
     # Hàm gửi ảnh đến AntiCaptcha
@@ -248,13 +248,13 @@ class crawler_hoaddondientu(base_crawler):
                 print(f"API response indicates failure: {response_data}")
                 self.send_slack_notification(
                     f"[ERROR] Workflow crawling data hoadondientu failed {response_data}",
-                    self.webhook_url,
+                    self.webhook_url_hddt,
                 )
                 return None
         except Exception as e:
             print(f"Error with request: {str(e)}")
             self.send_slack_notification(
-                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url
+                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
             return None
 
@@ -287,7 +287,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"An error occurred: {str(e)}")
             self.send_slack_notification(
-                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url
+                "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
             return None
 
@@ -341,7 +341,7 @@ class crawler_hoaddondientu(base_crawler):
                 print(f"- Finish submitting the form (Lần {login_attempt + 1})")
                 self.send_slack_notification(
                     f"[INFO] Chương trình đang thực hiên login lần {login_attempt + 1}",
-                    self.webhook_url,
+                    self.webhook_url_hddt,
                 )
                 # Kiểm tra nếu có thông báo lỗi CAPTCHA
                 try:
@@ -358,7 +358,7 @@ class crawler_hoaddondientu(base_crawler):
                         print("[WARNING] Mã xác nhận nhập sai. Đang thử lại...")
                         self.send_slack_notification(
                             "[WARNING] Login thất bại. Đang thử lại...",
-                            self.webhook_url,
+                            self.webhook_url_hddt,
                         )
                         # Lưu và giải mã CAPTCHA mới
                         self.crawl_img(driver)
@@ -388,7 +388,7 @@ class crawler_hoaddondientu(base_crawler):
                         )
                         self.send_slack_notification(
                             "[SUCCESS] Đăng nhập thành công! Đã vào trang chính.",
-                            self.webhook_url,
+                            self.webhook_url_hddt,
                         )
                         if login_attempt == 0:
                             self.crawl(driver)  # Lần đầu tiên, gọi hàm crawl
@@ -400,7 +400,7 @@ class crawler_hoaddondientu(base_crawler):
                         "[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại..."
                     )
                     self.send_slack_notification(
-                        "[FAILED] Chương trình chạy thất bại", self.webhook_url
+                        "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
                     )
                     login_attempt += 1  # Tăng số lần thử đăng nhập
                     continue  # Thử lại nếu không tìm thấy dấu hiệu thành công
@@ -410,7 +410,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
             self.send_slack_notification(
-                "[FAILED] Chương trình chạy thất bại", self.webhook_url
+                "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
     # 2.1 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha lần đầu thành công
@@ -523,7 +523,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
             self.send_slack_notification(
-                "[ERROR]Chương trình chạy thất bại", self.webhook_url
+                "[ERROR]Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
         # Chọn nút Tìm kiếm
@@ -651,7 +651,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
             self.send_slack_notification(
-                "[FAILED] Chương trình chạy thất bại", self.webhook_url
+                "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
     # Chụp màn hình hóa đơn chi tiết
@@ -815,7 +815,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
         # Chọn nút Tìm kiếm
@@ -989,7 +989,7 @@ class crawler_hoaddondientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
     
@@ -1159,7 +1159,7 @@ class crawler_hoaddondientu(base_crawler):
         )
         self.send_slack_notification(
             f"[INFO] Link to subfolder: https://drive.google.com/drive/folders/{subfolder_id}",
-            self.webhook_url,
+            self.webhook_url_hddt,
         )
 
         return main_folder_id, subfolder_id
@@ -1537,22 +1537,22 @@ class crawler_hoaddondientu(base_crawler):
             )
 
             self.send_slack_notification(
-                "\n=========== Báo cáo tổng kết ===========", self.webhook_url
+                "\n=========== Báo cáo tổng kết ===========", self.webhook_url_hddt
             )
             self.send_slack_notification(
-                f"Số công ty cần chạy: {total_companies}", self.webhook_url
+                f"Số công ty cần chạy: {total_companies}", self.webhook_url_hddt
             )
             self.send_slack_notification(
                 f"Số tháng cần crawl: {args.crawl_months} ({', '.join(months_to_crawl)})",
-                self.webhook_url,
+                self.webhook_url_hddt,
             )
             self.send_slack_notification(
                 f"Số công ty thành công: {sum(1 for success, fail in company_results.values() if success)}",
-                self.webhook_url,
+                self.webhook_url_hddt,
             )
             self.send_slack_notification(
                 f"Số công ty thất bại: {sum(1 for success, fail in company_results.values() if not success)}",
-                self.webhook_url,
+                self.webhook_url_hddt,
             )
 
             for company, (success_months, failed_months) in company_results.items():
@@ -1564,7 +1564,7 @@ class crawler_hoaddondientu(base_crawler):
                 )
                 print(f"Công ty {company}: {success_text}, {fail_text}")
                 self.send_slack_notification(
-                    f"Công ty {company}: {success_text}, {fail_text}", self.webhook_url
+                    f"Công ty {company}: {success_text}, {fail_text}", self.webhook_url_hddt
                 )
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()

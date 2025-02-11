@@ -89,7 +89,7 @@ class crawler_baohiemxahoi(base_crawler):
         # Nhấn nút Đăng nhập
         try:
             print(f"- Đang đăng nhập cho công ty: {company}")
-            self.send_slack_notification(f"[INFO] Chương trình đang login vào công ty: {company}",self.webhook_url)
+            self.send_slack_notification(f"[INFO] Chương trình đang login vào công ty: {company}",self.webhook_url_bhxh)
             login_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), ' Đăng nhập ')]"))
             )
@@ -153,10 +153,10 @@ class crawler_baohiemxahoi(base_crawler):
                 print("[INFO] CAPTCHA đã được lưu tại captcha_image.png")
             else:
                 print("[ERROR] Không tìm thấy dữ liệu base64 trong src của ảnh CAPTCHA.")
-                self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed",self.webhook_url)
+                self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed",self.webhook_url_bhxh)
         except Exception as e:
             print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
 
     # 1.2 Gửi ảnh lên autocaptcha để giải mã
     def solve_captcha(self, image_base64):
@@ -188,11 +188,11 @@ class crawler_baohiemxahoi(base_crawler):
                 return response_data["captcha"]
             else:
                 print(f"[ERROR] API response indicates failure: {response_data}")
-                self.send_slack_notification(f"[ERROR] Workflow crawling data baohiemxahoi failed {response_data}",self.webhook_url)
+                self.send_slack_notification(f"[ERROR] Workflow crawling data baohiemxahoi failed {response_data}",self.webhook_url_bhxh)
                 return None
         except Exception as e:
             print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
             return None
 
     # Xử lý ảnh CAPTCHA và giải mã
@@ -213,7 +213,7 @@ class crawler_baohiemxahoi(base_crawler):
             return captcha_text
         except Exception as e:
             print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
             return None
 
     # 1.3 Nhập mã CAPTCHA tự động
@@ -289,10 +289,10 @@ class crawler_baohiemxahoi(base_crawler):
                     submit_button = driver.find_element(By.XPATH, submit_button_xpath)
                     submit_button.click()
                     print(f"- Finish submitting the form (attempt {attempt})")
-                    self.send_slack_notification(f"[INFO] Chương trình đang thực hiên login lần {attempt}",self.webhook_url)
+                    self.send_slack_notification(f"[INFO] Chương trình đang thực hiên login lần {attempt}",self.webhook_url_bhxh)
                 except NoSuchElementException:
                     print(f"[ERROR] Không tìm thấy nút đăng nhập cho attempt {attempt}. Đang thử lại...")
-                    self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed",self.webhook_url)
+                    self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed",self.webhook_url_bhxh)
                     # Kiểm tra nếu đăng nhập thành công (dựa trên sự xuất hiện của thẻ span với class idAccount)
                 try:
                     # Kiểm tra sự xuất hiện của thẻ span có class 'idAccount'
@@ -300,14 +300,14 @@ class crawler_baohiemxahoi(base_crawler):
                         EC.presence_of_element_located((By.CLASS_NAME, "idAccount"))
                     )
                     print("[INFO] Đăng nhập thành công!")
-                    self.send_slack_notification("[SUCCESS] Chương trình đã login thành công vào trang BHXH",self.webhook_url)
+                    self.send_slack_notification("[SUCCESS] Chương trình đã login thành công vào trang BHXH",self.webhook_url_bhxh)
                     break  # Đăng nhập thành công, thoát khỏi vòng lặp
                 except TimeoutException:
                     print(f"[DEBUG] Không thấy thẻ idAccount ở attempt {attempt}. Đang thử lại...")
 
                     # Đăng nhập không thành công, nhập lại thông tin
                     print("[ERROR] Đăng nhập thất bại. Đang thử lại...")
-                    self.send_slack_notification(f"[ERROR] Login thất bại, thực hiện retry lần {attempt}",self.webhook_url)
+                    self.send_slack_notification(f"[ERROR] Login thất bại, thực hiện retry lần {attempt}",self.webhook_url_bhxh)
                     # Nhập lại các trường thông tin
                     self.retry_input(username, password)
 
@@ -317,7 +317,7 @@ class crawler_baohiemxahoi(base_crawler):
                     self.enter_verification_code(driver, captcha_image_path)  # Nhập mã CAPTCHA tự động
         except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
 
     def get_unique_filename(self, base_filename):
         """
@@ -362,7 +362,7 @@ class crawler_baohiemxahoi(base_crawler):
             return unique_save_path  # Trả về đường dẫn file PDF duy nhất
         except Exception as e:
             print(f"[ERROR] Lỗi khi tải file từ blob URL: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
             return None
 
     def download_tab_data(self,  save_path):
@@ -391,7 +391,7 @@ class crawler_baohiemxahoi(base_crawler):
                 return None
         except Exception as e:
             print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
-            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url)
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
             return None
 
     def find_months(self, month):
@@ -675,7 +675,8 @@ class crawler_baohiemxahoi(base_crawler):
         captcha_image_path = "captcha_image.png"
 
         # Khởi tạo trình duyệt
-        self.driver = self.initialize_driver('======== Workflow BaoHiemXaHoi ==========')
+        self.driver = self.initialize_driver()
+        self.send_slack_notification("======== Workflow BaoHiemXaHoi ==========", self.webhook_url_bhxh)
         engine = self.create_and_connect_to_database()
 
         # Lấy danh sách công ty từ database
@@ -707,7 +708,7 @@ class crawler_baohiemxahoi(base_crawler):
             print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
             print(f"Tổng Số tháng cần chạy: {len(months_to_run)}")
             print(f"Danh sách các tháng cần chạy: {months_to_run}")
-            self.send_slack_notification(f"Danh sách các tháng cần chạy: {months_to_run}", self.webhook_url)
+            self.send_slack_notification(f"Danh sách các tháng cần chạy: {months_to_run}", self.webhook_url_bhxh)
 
             company_success = 0
             company_failure = 0
@@ -767,16 +768,16 @@ class crawler_baohiemxahoi(base_crawler):
 
         # Báo cáo tổng kết
         print("\n=========== Báo cáo tổng kết ===========")
-        self.send_slack_notification("=========== Báo cáo tổng kết ===========", self.webhook_url)
+        self.send_slack_notification("=========== Báo cáo tổng kết ===========", self.webhook_url_bhxh)
         print(f"Tổng số công ty có trong database: {total_companies}")
-        self.send_slack_notification(f"[INFO] Tổng số công ty có trong database: {total_companies}",self.webhook_url)
+        self.send_slack_notification(f"[INFO] Tổng số công ty có trong database: {total_companies}",self.webhook_url_bhxh)
         print(f"Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}")
-        self.send_slack_notification(f"[SUCCESS] Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}",self.webhook_url)
+        self.send_slack_notification(f"[SUCCESS] Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}",self.webhook_url_bhxh)
         
         print(f"Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}")
-        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}",self.webhook_url)
+        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}",self.webhook_url_bhxh)
         for company, results in company_results.items():
             print(f"Công ty {company}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
-            self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url)
+            self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url_bhxh)
 
         self.driver.quit()

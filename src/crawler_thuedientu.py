@@ -65,7 +65,7 @@ class crawler_thuedientu(base_crawler):
 
         print(f"- Đang đăng nhập cho công ty: {company}")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty: {company}", self.webhook_url
+            f"[INFO] Chương trình đang login vào công ty: {company}", self.webhook_url_thuedt
         )
 
         # Nhấn nút Doanh Nghiệp
@@ -120,7 +120,7 @@ class crawler_thuedientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Lỗi khi lưu ảnh CAPTCHA: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
 
     # Gửi ảnh lên autocaptcha để giải mã
@@ -155,13 +155,13 @@ class crawler_thuedientu(base_crawler):
                 print(f"[ERROR] API response indicates failure: {response_data}")
                 self.send_slack_notification(
                     f"[ERROR] Chương trình chạy thất bại {response_data}",
-                    self.webhook_url,
+                    self.webhook_url_thuedt,
                 )
                 return None
         except Exception as e:
             print(f"[ERROR] Lỗi khi gửi yêu cầu giải CAPTCHA: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
             return None
 
@@ -184,7 +184,7 @@ class crawler_thuedientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
             return None
 
@@ -214,7 +214,7 @@ class crawler_thuedientu(base_crawler):
         except Exception as e:
             print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
             return False
 
@@ -251,7 +251,7 @@ class crawler_thuedientu(base_crawler):
                 print(f"- Finish submitting the form (attempt {attempt})")
                 self.send_slack_notification(
                     f"[INFO] Chương trình đang thực hiên login lần {attempt}",
-                    self.webhook_url,
+                    self.webhook_url_thuedt,
                 )
 
                 # Kiểm tra nếu có thông báo lỗi CAPTCHA
@@ -268,7 +268,7 @@ class crawler_thuedientu(base_crawler):
                     if error_message:
                         print("[ERROR] Mã xác nhận nhập sai. Đang thử lại...")
                         self.send_slack_notification(
-                            "[ERROR] Login thất bại, đang thử lại", self.webhook_url
+                            "[ERROR] Login thất bại, đang thử lại", self.webhook_url_thuedt
                         )
                         # Nhập lại các trường thông tin
                         self.retry_user_pass_doituong(driver, username, password)
@@ -300,7 +300,7 @@ class crawler_thuedientu(base_crawler):
                         print("[INFO] Đăng nhập thành công! Đã vào trang chính.")
                         self.send_slack_notification(
                             "[SUCCESS] Đăng nhập thành công! Đã vào trang chính.",
-                            self.webhook_url,
+                            self.webhook_url_thuedt,
                         )
                         return  # Thoát khỏi hàm khi thành công
                 except TimeoutException:
@@ -314,7 +314,7 @@ class crawler_thuedientu(base_crawler):
         except Exception as e:
             print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
 
     # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
@@ -511,7 +511,7 @@ class crawler_thuedientu(base_crawler):
             print("Không tìm thấy bảng với id 'data_content_onday'.")
             df = pd.DataFrame()  # Trả về DataFrame rỗng nếu không tìm thấy bảng
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
 
         return df
@@ -744,7 +744,8 @@ class crawler_thuedientu(base_crawler):
         print(f"\nTổng số công ty cần xử lý: {total_companies}")
 
         # Initialize webdriver
-        driver = self.initialize_driver("======== Workflow ThueDienTu ==========.")
+        driver = self.initialize_driver()
+        self.send_slack_notification("======== Workflow ThueDienTu ==========.", self.webhook_url_thuedt)
         captcha_image_path = "captcha_image.png"
 
         successful_companies = []
@@ -800,9 +801,9 @@ class crawler_thuedientu(base_crawler):
             except Exception as e:
                 print(f"Đã xảy ra lỗi: {e}")
                 failed_companies.append(company)  # Thêm vào danh sách thất bại
-                self.send_slack_notification(
-                    f"Lỗi khi xử lý công ty {company}: {e}", self.webhook_url
-                )
+                # self.send_slack_notification(
+                #     f"Lỗi khi xử lý công ty {company}: {e}", self.webhook_url_thuedt
+                # )
 
         # Đóng tất cả các tab sau khi hoàn tất
         driver.quit()  # Đóng WebDriver sau khi xử lý tất cả công ty
@@ -814,28 +815,28 @@ class crawler_thuedientu(base_crawler):
         print(f"Số công ty chạy thất bại: {len(failed_companies)}")
 
         self.send_slack_notification(
-            "\n=========== Báo cáo tổng kết ===========", self.webhook_url
+            "\n=========== Báo cáo tổng kết ===========", self.webhook_url_thuedt
         )
         self.send_slack_notification(
-            f"Số công ty cần chạy: {total_companies}", self.webhook_url
+            f"Số công ty cần chạy: {total_companies}", self.webhook_url_thuedt
         )
         self.send_slack_notification(
-            f"Số công ty chạy thành công: {len(successful_companies)}", self.webhook_url
+            f"Số công ty chạy thành công: {len(successful_companies)}", self.webhook_url_thuedt
         )
         self.send_slack_notification(
-            f"Số công ty chạy thất bại: {len(failed_companies)}", self.webhook_url
+            f"Số công ty chạy thất bại: {len(failed_companies)}", self.webhook_url_thuedt
         )
 
         if successful_companies:
             print("- Công ty chạy thành công:")
-            self.send_slack_notification("- Công ty chạy thành công:", self.webhook_url)
+            self.send_slack_notification("- Công ty chạy thành công:", self.webhook_url_thuedt)
             for company in successful_companies:
                 print(f" {company}")
-                self.send_slack_notification(f" {company}", self.webhook_url)
+                self.send_slack_notification(f" {company}", self.webhook_url_thuedt)
 
         if failed_companies:
             print("- Công ty chạy thất bại:")
-            self.send_slack_notification("- Công ty chạy thất bại:", self.webhook_url)
+            self.send_slack_notification("- Công ty chạy thất bại:", self.webhook_url_thuedt)
             for company in failed_companies:
                 print(f" {company}")
-                self.send_slack_notification(f" {company}", self.webhook_url)
+                self.send_slack_notification(f" {company}", self.webhook_url_thuedt)
