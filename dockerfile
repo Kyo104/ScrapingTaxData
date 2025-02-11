@@ -15,6 +15,10 @@ RUN apt-get update && \
     python3.12-venv \
     python3.12-dev \
     openjdk-8-jdk \
+    libcairo2 \
+    libpango1.0-dev \
+    libgdk-pixbuf2.0-dev \
+    libffi-dev \
     && apt-get clean
 
 # Install Chrome & ChromeDriver
@@ -37,7 +41,7 @@ COPY app /app/app
 COPY src /app/src
 COPY eSignerJava /app/eSignerJava
 COPY requirements.txt /app
-COPY glassy-tube-448614-m4-507193332bdb.json /app/
+COPY api-google.json /app/
 
 # Install Python dependencies inside venv
 RUN python3.12 -m venv /app/venv && \
