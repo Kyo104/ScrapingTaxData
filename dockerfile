@@ -4,6 +4,7 @@ FROM ubuntu:20.04
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/app/venv/bin:$PATH"
+ENV DISPLAY=:99
 
 # Install dependencies
 RUN apt-get update && \
@@ -33,6 +34,24 @@ RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/133.0.6943
     mv /usr/local/bin/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
     chmod +x /usr/local/bin/chromedriver
 
+# Install Xvfb for headless display
+RUN apt-get update && apt-get install -y \
+    xvfb \
+    x11-utils \
+    xfonts-base \
+    xfonts-75dpi \
+    xfonts-scalable \
+    libxi6 \
+    libgconf-2-4 \
+    libnss3 \
+    libxss1 \
+    libappindicator1 \
+    libindicator7 \
+    && apt-get clean
+
+# Set up virtual display
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+
 # Set the working directory
 WORKDIR /app
 
@@ -54,6 +73,7 @@ RUN java -version
 RUN google-chrome --version
 RUN chromedriver --version
 
-# Set default command
-RUN java -jar app/eSignerJava/eSignerJava.jar &
-CMD ["tail", "-f", "/dev/null"]
+# Start Xvfb before running the application
+CMD Xvfb :99 -screen 0 1920x1080x24 & \
+    java -jar app/eSignerJava/eSignerJava.jar & \
+    tail -f /dev/null
