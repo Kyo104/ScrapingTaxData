@@ -486,7 +486,7 @@ class crawler_baohiemxahoi(base_crawler):
             tra_cuu_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="content"]/div[1]/div/div/div[2]/div[1]/ul/li[4]/a')))
             tra_cuu_button.click()
             print("- Finish click Tra cứu Hồ sơ")
-            time.sleep(3)
+            time.sleep(5)
 
             # Đợi overlay biến mất trước khi nhấn tiếp
             wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "backdrop")))
@@ -495,13 +495,13 @@ class crawler_baohiemxahoi(base_crawler):
             tra_cuu_c12_button = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/app-root/app-portal/div/app-siderbar/div/div/ul/li[9]/a/span/span")))
             tra_cuu_c12_button.click()
             print("- Finish click Tra cứu C12")
-            time.sleep(3)
+            time.sleep(5)
 
             # Nhấn vào nút sổ các tháng cần tra cứu
             du_lieu_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "mat-select-arrow-wrapper")))
             du_lieu_button.click()
             print("- Finish click các tháng cần tra cứu")
-            time.sleep(3)
+            time.sleep(5)
 
             # Gọi đến hàm find_months với tháng từ argument
             self.find_months(month)
@@ -511,7 +511,7 @@ class crawler_baohiemxahoi(base_crawler):
             du_lieu_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "mat-raised-button")))
             du_lieu_button.click()
             print("- Finish click nút Tra cứu")
-            time.sleep(10)
+            time.sleep(15)
 
             # Gọi đến hàm lưu dữ liệu về máy
             save_path = "BangDuLieuTheoThang.pdf"
@@ -521,9 +521,10 @@ class crawler_baohiemxahoi(base_crawler):
                 self.extract_specific_rows(unique_pdf_path, output_csv_path, company, month, year)
             else:
                 print(f"[WARNING] Không tìm thấy dữ liệu cho tháng {month}. Bỏ qua tháng này.")
-
+            return True
         except Exception as e:
             print(f"[ERROR] Lỗi khi crawl dữ liệu tháng {month}: {e}")
+            return False
 
     # Tạo bảng data_bhxh
 
@@ -725,36 +726,52 @@ class crawler_baohiemxahoi(base_crawler):
                 self.enter_verification_code(self.driver, captcha_image_path)
                 self.submit_form(self.driver, username, password, captcha_image_path)
 
+
+                # Số lần thử lại tối đa nếu crawl thất bại
+                max_retries = 3 
                 for month in months_to_run:
                     print(f"\nĐang xử lý tháng {month} cho công ty {company}")
-                    try:
-                        # Mở tab mới trước khi xử lý
-                        self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
-                        self.driver.switch_to.window(self.driver.window_handles[-1])
+                    retry_count = 0
 
-                        # Gọi hàm crawl
-                        self.crawl(company, str(month), args.year)
+                    while retry_count < max_retries:
+                        try:
+                            # Mở tab mới trước khi xử lý
+                            self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
+                            self.driver.switch_to.window(self.driver.window_handles[-1])
 
-                        # Lưu dữ liệu vào database
-                        self.create_data_bhxh_table(engine)
-                        self.add_foreign_key(engine)
-                        if self.load_csv_to_database(engine, company, str(month), args.year):
-                            print(f"[INFO] Tháng {month} của công ty {company} lưu thành công.")
-                            company_success += 1
-                        else:
-                            print(f"[WARNING] Tháng {month} của công ty {company} không có dữ liệu.")
-                            company_failure += 1
+                            # Gọi hàm crawl
+                        
+                            if not self.crawl(company, str(month), args.year):
+                                raise Exception(f"[ERROR] Lỗi khi crawl dữ liệu tháng {month}")
 
-                        # Sau khi xử lý xong, đóng tất cả tab cũ, chỉ giữ lại tab hiện tại
-                        current_tab = self.driver.current_window_handle
-                        for handle in self.driver.window_handles:
-                            if handle != current_tab:
-                                self.driver.switch_to.window(handle)
-                                self.driver.execute_script("window.close();")
-                        self.driver.switch_to.window(current_tab)
+                            # Lưu dữ liệu vào database
+                            self.create_data_bhxh_table(engine)
+                            self.add_foreign_key(engine)
 
-                    except Exception as e:
-                        print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty {company}: {e}")
+                            if self.load_csv_to_database(engine, company, str(month), args.year):
+                                print(f"[INFO] Tháng {month} của công ty {company} lưu thành công.")
+                                company_success += 1
+                            else:
+                                print(f"[WARNING] Tháng {month} của công ty {company} không có dữ liệu.")
+                                company_failure += 1
+
+                            # Đóng tất cả tab cũ, chỉ giữ lại tab hiện tại
+                            current_tab = self.driver.current_window_handle
+                            for handle in self.driver.window_handles:
+                                if handle != current_tab:
+                                    self.driver.switch_to.window(handle)
+                                    self.driver.close()
+                            self.driver.switch_to.window(current_tab)
+
+                            break  # Nếu thành công thì thoát vòng lặp retry
+
+                        except Exception as e:
+                            retry_count += 1
+                            print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty {company}, lần thử {retry_count}/{max_retries}: {e}")
+                            time.sleep(5)  # Chờ 5 giây trước khi thử lại
+
+                    if retry_count == max_retries:
+                        print(f"[FAILED] Tháng {month} của công ty {company} thất bại sau {max_retries} lần thử.")
                         company_failure += 1
 
             except Exception as e:
@@ -786,3 +803,4 @@ class crawler_baohiemxahoi(base_crawler):
             self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url_bhxh)
 
         self.driver.quit()
+        
