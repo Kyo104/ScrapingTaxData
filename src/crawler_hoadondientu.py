@@ -657,65 +657,120 @@ class crawler_hoaddondientu(base_crawler):
     # Chụp màn hình hóa đơn chi tiết
     def capture_full_page(self, driver, save_path):
         try:
+            # Reset scroll về đầu trang trước khi lấy thông tin chiều cao
+            driver.execute_script("""
+                var element = document.querySelector('.ant-modal-body');
+                if (element) element.scrollTop = 0;
+            """)
+            time.sleep(1)
+
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "ant-modal-body"))
             )
+
             print("[DEBUG] Đã tìm thấy .ant-modal-body.")
 
+            # TÍNH LẠI CHIỀU CAO CỦA MODAL SAU MỖI LẦN MỞ
             element_height = driver.execute_script("""
+                var element = document.querySelector('.ant-modal-body');
+                return element ? element.scrollHeight : 0;
+            """)
+            viewport_height = driver.execute_script("""
+                var element = document.querySelector('.ant-modal-body');
+                return element ? element.clientHeight : 0;
+            """)
+
+            print(f"[DEBUG] Modal mới - Chiều cao tổng: {element_height}, Chiều cao viewport: {viewport_height}")
+
+            screenshots = []
+            total_height = 0
+            current_pos = 0
+            is_first_section = True
+
+            while current_pos < element_height:
+                # Cập nhật lại chiều cao hiện tại
+                element_height = driver.execute_script("""
                     var element = document.querySelector('.ant-modal-body');
                     return element ? element.scrollHeight : 0;
                 """)
-            viewport_height = driver.execute_script("""
+                viewport_height = driver.execute_script("""
                     var element = document.querySelector('.ant-modal-body');
                     return element ? element.clientHeight : 0;
                 """)
-            print(
-                f"[DEBUG] Chiều cao tổng: {element_height}, Chiều cao viewport: {viewport_height}"
-            )
 
-            current_scroll = 0
-            screenshots = []
-
-            while current_scroll < element_height:
-                # Cuộn xuống
+                # Scroll tới vị trí hiện tại
                 driver.execute_script(f"""
                     var element = document.querySelector('.ant-modal-body');
-                    element.scrollTop = {current_scroll};
-                    """)
-                time.sleep(1.5)  # Chờ nội dung được render
+                    if (element) element.scrollTop = {current_pos};
+                """)
+                time.sleep(1.5)  # Đợi để đảm bảo giao diện load đầy đủ
 
-                # Chụp màn hình
-                screenshot_path = f"temp_{current_scroll}.png"
+                # Lấy lại chiều cao sau khi scroll
+                current_element_height = driver.execute_script("""
+                    var element = document.querySelector('.ant-modal-body');
+                    return element ? element.scrollHeight : 0;
+                """)
+                current_viewport_height = driver.execute_script("""
+                    var element = document.querySelector('.ant-modal-body');
+                    return element ? element.clientHeight : 0;
+                """)
+
+                screenshot_path = f"temp_screenshot_{len(screenshots)}.png"
                 driver.save_screenshot(screenshot_path)
-                screenshots.append(screenshot_path)
-                print(f"[DEBUG] Đã chụp tại: {current_scroll}")
 
-                # Cập nhật vị trí cuộn
-                current_scroll += viewport_height
+                if is_first_section:
+                    height_to_capture = 690
+                    is_first_section = False
+                    current_pos += 690
+                else:
+                    remaining_height = current_element_height - current_pos
+                    height_to_capture = min(current_viewport_height, remaining_height)
+                    if height_to_capture <= 0:
+                        break
+                    current_pos += current_viewport_height
 
-            # Ghép ảnh
-            print("[DEBUG] Đang ghép ảnh.")
-            images = [Image.open(img) for img in screenshots]
-            total_width, _ = images[0].size
-            total_height = len(images) * viewport_height
-            combined_image = Image.new("RGB", (total_width, total_height))
+                screenshots.append((screenshot_path, 0, height_to_capture))
+                total_height += height_to_capture
 
+                print(f"[DEBUG] Chụp phần {len(screenshots)}: {current_pos - height_to_capture} -> {current_pos}")
+
+                # Kiểm tra đã scroll hết chưa
+                is_at_bottom = driver.execute_script("""
+                    var element = document.querySelector('.ant-modal-body');
+                    return element ? 
+                        Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 10 : true;
+                """)
+
+                if is_at_bottom:
+                    break
+
+            # GHÉP ẢNH SAU KHI CHỤP ĐỦ
+            print("[DEBUG] Đang ghép ảnh với tổng chiều cao:", total_height)
+            total_width = None
+            combined_image = None
             y_offset = 0
-            for img in images:
-                combined_image.paste(img, (0, y_offset))
-                y_offset += img.size[1]
+
+            for screenshot_path, start_y, height in screenshots:
+                img = Image.open(screenshot_path)
+                if total_width is None:
+                    total_width, _ = img.size
+                    combined_image = Image.new("RGB", (total_width, total_height))
+
+                cropped = img.crop((0, start_y, total_width, start_y + height))
+                combined_image.paste(cropped, (0, y_offset))
+                y_offset += height
                 img.close()
 
             combined_image.save(save_path)
             print(f"[SUCCESS] Ảnh đã lưu tại: {save_path}")
 
             # Xóa ảnh tạm
-            for img in screenshots:
-                os.remove(img)
+            for screenshot_path, _, _ in screenshots:
+                os.remove(screenshot_path)
 
         except Exception as e:
             print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
+
 
     # 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu bảng
     def extract_img_hoa_don_mua_vao(self, driver):
@@ -737,37 +792,37 @@ class crawler_hoaddondientu(base_crawler):
             # Lặp qua từng hàng và click
             for index, row in enumerate(rowsbody):
                 try:
-                    # Đưa con trỏ tới hàng để chắc chắn có thể click
+                    # Reset scroll position của trang
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(1)
+
+                    # Đưa con trỏ tới hàng và đảm bảo nó visible
+                    driver.execute_script("arguments[0].scrollIntoView(true);", row)
                     ActionChains(driver).move_to_element(row).perform()
+                    time.sleep(1)
+                    
                     print(f"[DEBUG] Click vào hàng thứ {index + 1}")
-
-                    # Click vào hàng
                     row.click()
+                    time.sleep(2)
 
-                    # Có thể thêm logic chờ đợi hoặc xử lý sau khi click
-                    time.sleep(2)  # Tạm dừng để quan sát trong 2s
-
-                    # =========================
-                    # click vào nút " Xem hóa đơn"  chi tiết
+                    # Click vào nút "Xem hóa đơn" chi tiết
                     img_btn = driver.find_element(
                         By.XPATH,
                         '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[1]/div[2]/div/div[5]/button',
                     )
                     img_btn.click()
-                    print(
-                        f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}"
-                    )
+                    print(f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
                     time.sleep(3)
 
-                    # Chụp màn hình toàn bộ hóa đơn
+                    # Chụp màn hình với viewport mới
                     base_file_name = f"hoadon_muavao_chitiet_stt_{index + 1}.png"
                     unique_file_name = self.get_unique_filename(base_file_name)
                     self.capture_full_page(driver, unique_file_name)
 
-                    # Đóng modal
+                    # Đóng modal và đợi nó đóng hoàn toàn
                     close_btn = driver.find_element(By.CLASS_NAME, "ant-modal-close")
                     close_btn.click()
-                    time.sleep(1)
+                    time.sleep(2)  # Đợi modal đóng hoàn toàn
 
                 except ElementNotInteractableException as e:
                     print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: {e}")
@@ -776,6 +831,9 @@ class crawler_hoaddondientu(base_crawler):
 
         except Exception as e:
             print(f"[ERROR] Lỗi chung: {e}")
+            self.send_slack_notification(
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
+            )
 
     # 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu
     def crawl_hoa_don_ban_ra(self, driver):
@@ -937,10 +995,10 @@ class crawler_hoaddondientu(base_crawler):
             print(f"[DEBUG] Số phần tử với class='ant-table-tbody': {len(elements2)}")
 
             # Chọn phần tử thứ nhất (index 0)
-            if len(elements2) > 1:
+            if len(elements2) > 0:
                 tbody = elements2[0]
             else:
-                raise Exception("Không tìm thấy phần tử ant-table-tbody thứ hai.")
+                raise Exception("Không tìm thấy phần tử ant-table-tbody.")
 
             # Lấy tất cả các hàng hiện tại
             rowsbody = tbody.find_elements(By.XPATH, ".//tr")
@@ -949,37 +1007,37 @@ class crawler_hoaddondientu(base_crawler):
             # Lặp qua từng hàng và click
             for index, row in enumerate(rowsbody):
                 try:
-                    # Đưa con trỏ tới hàng để chắc chắn có thể click
+                    # Reset scroll position của trang
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(1)
+
+                    # Đưa con trỏ tới hàng và đảm bảo nó visible
+                    driver.execute_script("arguments[0].scrollIntoView(true);", row)
                     ActionChains(driver).move_to_element(row).perform()
+                    time.sleep(1)
+                    
                     print(f"[DEBUG] Click vào hàng thứ {index + 1}")
-
-                    # Click vào hàng
                     row.click()
+                    time.sleep(2)
 
-                    # Có thể thêm logic chờ đợi hoặc xử lý sau khi click
-                    time.sleep(2)  # Tạm dừng để quan sát
-
-                    # =========================
-                    # click vào nút " Xem hóa đơn"  chi tiết
+                    # Click vào nút "Xem hóa đơn" chi tiết
                     img_btn = driver.find_element(
                         By.XPATH,
                         '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[1]/div[3]/div[2]/div[1]/div[2]/div/div[5]/button',
                     )
                     img_btn.click()
-                    print(
-                        f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}"
-                    )
+                    print(f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
                     time.sleep(3)
 
-                    # Chụp màn hình toàn bộ hóa đơn
+                    # Chụp màn hình với viewport mới
                     base_file_name = f"hoadon_banra_chitiet_stt_{index + 1}.png"
                     unique_file_name = self.get_unique_filename(base_file_name)
                     self.capture_full_page(driver, unique_file_name)
 
-                    # Đóng modal
+                    # Đóng modal và đợi nó đóng hoàn toàn
                     close_btn = driver.find_element(By.CLASS_NAME, "ant-modal-close")
                     close_btn.click()
-                    time.sleep(1)
+                    time.sleep(2)  # Đợi modal đóng hoàn toàn
 
                 except ElementNotInteractableException as e:
                     print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: {e}")
@@ -992,7 +1050,6 @@ class crawler_hoaddondientu(base_crawler):
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
 
-    
 
     # Hàm kết nối PostgreSQL
     def get_connection(self):
