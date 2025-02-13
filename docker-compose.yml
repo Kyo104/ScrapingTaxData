@@ -34,13 +34,15 @@ services:
       - WEBHOOK_URL_HDDT=${WEBHOOK_URL_HDDT}
 
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: dockerfile.jenkins
     container_name: jenkins
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
-      - jenkins_home:/var/jenkins_home
+      - ./jenkins_home:/var/jenkins_home
     networks:
       - app-network
 
@@ -54,7 +56,8 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
     networks:
       - app-network
 
