@@ -657,21 +657,21 @@ class crawler_hoaddondientu(base_crawler):
     # Chụp màn hình hóa đơn chi tiết
     def capture_full_page(self, driver, save_path):
         try:
-            # Reset scroll về đầu trang trước khi lấy thông tin chiều cao
+            # Reset scroll về đầu trang
             driver.execute_script("""
                 var element = document.querySelector('.ant-modal-body');
                 if (element) element.scrollTop = 0;
             """)
             time.sleep(1)
 
+            # Đợi modal body xuất hiện
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "ant-modal-body"))
             )
-
             print("[DEBUG] Đã tìm thấy .ant-modal-body.")
 
-            # TÍNH LẠI CHIỀU CAO CỦA MODAL SAU MỖI LẦN MỞ
-            element_height = driver.execute_script("""
+            # Lấy chiều cao tổng và viewport
+            total_height = driver.execute_script("""
                 var element = document.querySelector('.ant-modal-body');
                 return element ? element.scrollHeight : 0;
             """)
@@ -680,96 +680,70 @@ class crawler_hoaddondientu(base_crawler):
                 return element ? element.clientHeight : 0;
             """)
 
-            print(f"[DEBUG] Modal mới - Chiều cao tổng: {element_height}, Chiều cao viewport: {viewport_height}")
+            print(f"[DEBUG] Chiều cao tổng: {total_height}, Chiều cao viewport: {viewport_height}")
 
             screenshots = []
-            total_height = 0
-            current_pos = 0
-            is_first_section = True
-
-            while current_pos < element_height:
-                # Cập nhật lại chiều cao hiện tại
-                element_height = driver.execute_script("""
-                    var element = document.querySelector('.ant-modal-body');
-                    return element ? element.scrollHeight : 0;
-                """)
-                viewport_height = driver.execute_script("""
-                    var element = document.querySelector('.ant-modal-body');
-                    return element ? element.clientHeight : 0;
-                """)
-
-                # Scroll tới vị trí hiện tại
+            starting_idx = 0
+            num_screenshots = total_height // viewport_height
+            remainder = total_height % viewport_height
+            
+            for i in range(1, int(num_screenshots) + 1):
+            # while starting_idx < total_height:
+                # Scroll đến vị trí hiện tại
                 driver.execute_script(f"""
                     var element = document.querySelector('.ant-modal-body');
-                    if (element) element.scrollTop = {current_pos};
+                    if (element) element.scrollTop = {starting_idx};
                 """)
-                time.sleep(1.5)  # Đợi để đảm bảo giao diện load đầy đủ
+                time.sleep(1.5)
 
-                # Lấy lại chiều cao sau khi scroll
-                current_element_height = driver.execute_script("""
-                    var element = document.querySelector('.ant-modal-body');
-                    return element ? element.scrollHeight : 0;
-                """)
-                current_viewport_height = driver.execute_script("""
-                    var element = document.querySelector('.ant-modal-body');
-                    return element ? element.clientHeight : 0;
-                """)
-
-                screenshot_path = f"temp_screenshot_{len(screenshots)}.png"
+                screenshot_path = f"temp_screenshot_{i}.png"
                 driver.save_screenshot(screenshot_path)
 
-                if is_first_section:
-                    height_to_capture = 690
-                    is_first_section = False
-                    current_pos += 690
-                else:
-                    remaining_height = current_element_height - current_pos
-                    height_to_capture = min(current_viewport_height, remaining_height)
-                    if height_to_capture <= 0:
-                        break
-                    current_pos += current_viewport_height
+                screenshots.append((screenshot_path, viewport_height))
 
-                screenshots.append((screenshot_path, 0, height_to_capture))
-                total_height += height_to_capture
-
-                print(f"[DEBUG] Chụp phần {len(screenshots)}: {current_pos - height_to_capture} -> {current_pos}")
-
-                # Kiểm tra đã scroll hết chưa
-                is_at_bottom = driver.execute_script("""
+                print(f"[DEBUG] Chụp phần {i}: {starting_idx} -> {starting_idx + viewport_height}")
+                
+                starting_idx += viewport_height
+                
+            starting_idx = total_height - viewport_height
+            driver.execute_script(f"""
                     var element = document.querySelector('.ant-modal-body');
-                    return element ? 
-                        Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 10 : true;
+                    if (element) element.scrollTop = {starting_idx};
                 """)
+            time.sleep(1.5)
+            screenshot_path = f"temp_screenshot_{num_screenshots + 1}.png"
+            driver.save_screenshot(screenshot_path)
+            screenshots.append((screenshot_path, remainder))
+            print(f"[DEBUG] Chụp phần {num_screenshots + 1}: {starting_idx} -> {starting_idx + viewport_height}")
 
-                if is_at_bottom:
-                    break
-
-            # GHÉP ẢNH SAU KHI CHỤP ĐỦ
+            # Ghép ảnh
             print("[DEBUG] Đang ghép ảnh với tổng chiều cao:", total_height)
             total_width = None
             combined_image = None
             y_offset = 0
 
-            for screenshot_path, start_y, height in screenshots:
+            for screenshot_path, top in screenshots:
                 img = Image.open(screenshot_path)
                 if total_width is None:
                     total_width, _ = img.size
                     combined_image = Image.new("RGB", (total_width, total_height))
 
-                cropped = img.crop((0, start_y, total_width, start_y + height))
+                # cropped = img.crop((0, top, total_width, viewport_height))
+                cropped = img.crop((0, viewport_height - top, total_width, viewport_height))
                 combined_image.paste(cropped, (0, y_offset))
-                y_offset += height
+                y_offset += viewport_height
                 img.close()
 
             combined_image.save(save_path)
             print(f"[SUCCESS] Ảnh đã lưu tại: {save_path}")
 
             # Xóa ảnh tạm
-            for screenshot_path, _, _ in screenshots:
+            for screenshot_path, _ in screenshots:
                 os.remove(screenshot_path)
 
         except Exception as e:
             print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
+
 
 
     # 4.1 xuất từng ảnh ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu bảng
