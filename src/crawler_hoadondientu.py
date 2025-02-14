@@ -1454,6 +1454,7 @@ class crawler_hoaddondientu(base_crawler):
     # Hàm main
     def main_logic(self):
         """Chạy chương trình chính"""
+        print("[INFO] Main logic: Workflow HoaDonDienTu.")
         args = self.parse_arguments()
         self.ensure_database_exists(args)
 

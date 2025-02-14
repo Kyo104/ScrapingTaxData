@@ -720,6 +720,7 @@ class crawler_thuedientu(base_crawler):
 
     def main_logic(self):
         """Main function to run the crawler with parsed arguments."""
+        print("[INFO] Main logic: Workflow ThueDienTu.")
 
         # Initialize database configuration
         db_config = {

@@ -60,7 +60,7 @@ class base_crawler(ABC):
     def initialize_driver(self):
             """Khởi tạo trình duyệt Chrome."""
             self.chrome_options = Options()
-            # self.chrome_options.add_argument("--headless=new") # for Chrome >= 109
+            self.chrome_options.add_argument("--headless=new") # for Chrome >= 109
             self.chrome_options.add_argument("--disable-gpu") # Tắt GPU rendering
             self.chrome_options.add_argument("--no-sandbox")  # Bỏ qua chế độ sandbox
             self.chrome_options.add_argument("--disable-dev-shm-usage") 

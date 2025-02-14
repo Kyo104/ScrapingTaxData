@@ -710,7 +710,7 @@ class crawler_baohiemxahoi(base_crawler):
     
 
     def main_logic(self):
-        print('=============')
+        print("[INFO] Main logic: Workflow BaoHiemXaHoi.")
         args = self.parse_arguments()
         
         # Kết nối database và lấy danh sách công ty

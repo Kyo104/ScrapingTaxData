@@ -69,6 +69,7 @@ COPY eSignerJava /app/eSignerJava
 COPY requirements.txt /app
 COPY api-google.json /app/
 COPY utilities.sh /app
+COPY startup.sh /app
 
 # Install Python dependencies inside venv
 RUN python3.12 -m venv /app/venv && \
@@ -86,6 +87,6 @@ RUN ./utilities.sh
 # Set default command
 RUN service ssh restart
 # RUN Xvfb :99 -screen 0 1920x1080x24 &
-RUN java -jar app/eSignerJava/eSignerJava.jar &
+# RUN java -jar eSignerJava/eSignerJava.jar &
 # CMD ["tail", "-f", "/dev/null"]
-CMD ["/usr/sbin/sshd", "-D"]
+CMD ["./startup.sh"]
