@@ -257,7 +257,7 @@ class crawler_thuedientu(base_crawler):
                 # Kiểm tra nếu có thông báo lỗi CAPTCHA
                 try:
                     # Chờ thông báo lỗi CAPTCHA
-                    error_message = WebDriverWait(driver, 2).until(
+                    error_message = WebDriverWait(driver, 15).until(
                         EC.presence_of_element_located(
                             (
                                 By.XPATH,
@@ -288,7 +288,7 @@ class crawler_thuedientu(base_crawler):
                 # Kiểm tra nếu đăng nhập thành công
                 try:
                     # Chờ thẻ div có id "ddtabs1" xuất hiện
-                    WebDriverWait(driver, 5).until(
+                    WebDriverWait(driver, 15).until(
                         EC.presence_of_element_located((By.ID, "ddtabs1"))
                     )
                     # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text

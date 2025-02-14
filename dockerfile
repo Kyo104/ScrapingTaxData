@@ -67,6 +67,7 @@ COPY app /app/app
 COPY src /app/src
 COPY eSignerJava /app/eSignerJava
 COPY requirements.txt /app
+COPY .env /app
 COPY api-google.json /app/
 COPY utilities.sh /app
 COPY startup.sh /app
