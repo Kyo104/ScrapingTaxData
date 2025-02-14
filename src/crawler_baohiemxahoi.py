@@ -365,23 +365,13 @@ class crawler_baohiemxahoi(base_crawler):
             self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
             return None
 
-    def download_tab_data(self, save_path, company, month, year):
-        """
-        Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
-        Nếu URL không phải blob, thử lại thao tác crawl tối đa 3 lần.
-        """
-        try:
-            max_retries = 3
-            retry_count = 0
-
-            while retry_count < max_retries:
+    def download_tab_data(self,  save_path):
+            """
+            Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
+            """
+            try:
                 # Lấy danh sách các tab hiện tại
                 current_tabs = self.driver.window_handles
-                if len(current_tabs) < 2:
-                    print("[ERROR] Không tìm thấy tab mới. Đang thử lại...")
-                    retry_count += 1
-                    self.crawl(company, month, year)
-                    continue  # Thử lại vòng lặp
 
                 # Chuyển sang tab mới nhất
                 self.driver.switch_to.window(current_tabs[-1])
@@ -394,27 +384,15 @@ class crawler_baohiemxahoi(base_crawler):
                 # Kiểm tra nếu URL là blob và tải file PDF
                 if current_url.startswith("blob:"):
                     print("[INFO] Đang xử lý file từ blob URL...")
+                    # Truyền `driver` thay vì `current_url`
                     return self.download_blob_pdf(self.driver, save_path)
                 else:
-                    print("[WARNING] URL không phải blob. Đóng tab hiện tại và thử lại.")
-
-                    # Đóng tab không hợp lệ và chuyển về tab chính
-                    self.driver.close()
-                    self.driver.switch_to.window(current_tabs[0])  # Chuyển về tab đầu tiên
-
-                    # Tăng số lần thử lại
-                    retry_count += 1
-                    time.sleep(5)
-
-                    # Gọi lại hàm crawl
-                    self.crawl(company, month, year)
-
-            print(f"[FAILED] Tháng {month} của công ty {company} thất bại sau {max_retries} lần thử.")
-            return None
-
-        except Exception as e:
-            print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
-            return None
+                    print("[INFO] URL không phải blob, kiểm tra lại cấu trúc hoặc xử lý thêm.")
+                    return None
+            except Exception as e:
+                print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
+                self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
+                return None
 
 
     def find_months(self, month):
@@ -504,8 +482,7 @@ class crawler_baohiemxahoi(base_crawler):
     def crawl(self, company, month, year):
         try:
             wait = WebDriverWait(self.driver, 10)  # Thêm WebDriverWait
-            
-            
+
             # Kiểm tra và Nhấn nút tra cứu Hồ sơ nếu có
             try:
                 # Nhấn nút tra cứu Hồ sơ
@@ -515,9 +492,6 @@ class crawler_baohiemxahoi(base_crawler):
                 time.sleep(5)
             except (TimeoutException, NoSuchElementException):
                 print("[WARNING] Không tìm thấy nút Tra cứu Hồ sơ, bỏ qua...")
-                
-                
-            
 
             # Đợi overlay biến mất trước khi nhấn tiếp
             wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "backdrop")))
@@ -546,7 +520,8 @@ class crawler_baohiemxahoi(base_crawler):
 
             # Gọi đến hàm lưu dữ liệu về máy
             save_path = "BangDuLieuTheoThang.pdf"
-            unique_pdf_path = self.download_tab_data(save_path, company, month, year)
+            # unique_pdf_path = self.download_tab_data(save_path, company, month, year)
+            unique_pdf_path = self.download_tab_data(save_path)
             if unique_pdf_path:
                 output_csv_path = f"{company}_{month}_{year}_data_bhxh.csv"
                 self.extract_specific_rows(unique_pdf_path, output_csv_path, company, month, year)
