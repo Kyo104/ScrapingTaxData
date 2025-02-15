@@ -296,7 +296,7 @@ class crawler_baohiemxahoi(base_crawler):
                     # Kiểm tra nếu đăng nhập thành công (dựa trên sự xuất hiện của thẻ span với class idAccount)
                 try:
                     # Kiểm tra sự xuất hiện của thẻ span có class 'idAccount'
-                    WebDriverWait(driver, 10).until(
+                    WebDriverWait(driver, 20).until(
                         EC.presence_of_element_located((By.CLASS_NAME, "idAccount"))
                     )
                     print("[INFO] Đăng nhập thành công!")
@@ -366,34 +366,33 @@ class crawler_baohiemxahoi(base_crawler):
             return None
 
     def download_tab_data(self,  save_path):
-            """
-            Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
-            """
-            try:
-                # Lấy danh sách các tab hiện tại
-                current_tabs = self.driver.window_handles
+        """
+        Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
+        """
+        try:
+            # Lấy danh sách các tab hiện tại
+            current_tabs = self.driver.window_handles
 
-                # Chuyển sang tab mới nhất
-                self.driver.switch_to.window(current_tabs[-1])
-                print("[INFO] Đã chuyển sang tab mới.")
+            # Chuyển sang tab mới nhất
+            self.driver.switch_to.window(current_tabs[-1])
+            print("[INFO] Đã chuyển sang tab mới.")
 
-                # Lấy URL của tab mới
-                current_url = self.driver.current_url
-                print(f"[INFO] URL tab mới: {current_url}")
+            # Lấy URL của tab mới
+            current_url = self.driver.current_url
+            print(f"[INFO] URL tab mới: {current_url}")
 
-                # Kiểm tra nếu URL là blob và tải file PDF
-                if current_url.startswith("blob:"):
-                    print("[INFO] Đang xử lý file từ blob URL...")
-                    # Truyền `driver` thay vì `current_url`
-                    return self.download_blob_pdf(self.driver, save_path)
-                else:
-                    print("[INFO] URL không phải blob, kiểm tra lại cấu trúc hoặc xử lý thêm.")
-                    return None
-            except Exception as e:
-                print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
-                self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
+            # Kiểm tra nếu URL là blob và tải file PDF
+            if current_url.startswith("blob:"):
+                print("[INFO] Đang xử lý file từ blob URL...")
+                # Truyền `driver` thay vì `current_url`
+                return self.download_blob_pdf(self.driver, save_path)
+            else:
+                print("[INFO] URL không phải blob, kiểm tra lại cấu trúc hoặc xử lý thêm.")
                 return None
-
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lấy dữ liệu từ tab mới: {e}")
+            self.send_slack_notification("[ERROR] Workflow crawling data baohiemxahoi failed", self.webhook_url_bhxh)
+            return None
 
     def find_months(self, month):
         try:
@@ -482,7 +481,7 @@ class crawler_baohiemxahoi(base_crawler):
     def crawl(self, company, month, year):
         try:
             wait = WebDriverWait(self.driver, 10)  # Thêm WebDriverWait
-
+            
             # Kiểm tra và Nhấn nút tra cứu Hồ sơ nếu có
             try:
                 # Nhấn nút tra cứu Hồ sơ
@@ -520,7 +519,6 @@ class crawler_baohiemxahoi(base_crawler):
 
             # Gọi đến hàm lưu dữ liệu về máy
             save_path = "BangDuLieuTheoThang.pdf"
-            # unique_pdf_path = self.download_tab_data(save_path, company, month, year)
             unique_pdf_path = self.download_tab_data(save_path)
             if unique_pdf_path:
                 output_csv_path = f"{company}_{month}_{year}_data_bhxh.csv"
@@ -650,10 +648,7 @@ class crawler_baohiemxahoi(base_crawler):
         except Exception as e:
             print(f"Error fetching data from 'company_information': {e}")
             return []
-        
-        
-            
-            
+
     def clean_data(self, directory_path=".", file_extensions=(".csv", ".pdf")):
         """
         Xóa tất cả các file dữ liệu trong thư mục được chỉ định có phần mở rộng cụ thể.
@@ -685,21 +680,24 @@ class crawler_baohiemxahoi(base_crawler):
     
 
     def main_logic(self):
-        print("[INFO] Main logic: Workflow BaoHiemXaHoi.")
+        print('=============')
         args = self.parse_arguments()
-        
-        # Kết nối database và lấy danh sách công ty
+        captcha_image_path = "captcha_image.png"
+
+        # Khởi tạo trình duyệt
+        self.driver = self.initialize_driver()
+        self.send_slack_notification("======== Workflow BaoHiemXaHoi ==========", self.webhook_url_bhxh)
         engine = self.create_and_connect_to_database()
+
+        # Lấy danh sách công ty từ database
         companies = self.fetch_company_information(engine)
-        
         if not companies:
             print("Không có công ty nào để xử lý. Kết thúc chương trình.")
+            self.driver.quit()
             return
 
         total_companies = len(companies)
         print(f"Tổng số công ty cần xử lý: {total_companies}")
-        self.send_slack_notification("======== Workflow BaoHiemXaHoi ==========", self.webhook_url_bhxh)
-        self.send_slack_notification(f"[INFO] Tổng số công ty cần xử lý: {total_companies}", self.webhook_url_bhxh)
 
         overall_success = 0
         overall_failure = 0
@@ -712,20 +710,19 @@ class crawler_baohiemxahoi(base_crawler):
                 company_data["bhxh_password"],
             )
 
-            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
-            
-            # Khởi tạo trình duyệt mới cho mỗi công ty
+            # KHỞI TẠO LẠI TRÌNH DUYỆT CHO MỖI CÔNG TY
             try:
-                self.driver = self.initialize_driver()
+                if self.driver:
+                    self.driver.quit()
             except Exception as e:
-                print(f"[ERROR] Không thể khởi tạo trình duyệt cho công ty {company}: {e}")
-                continue
-
-            captcha_image_path = "captcha_image.png"
-
+                print(f"[WARNING] Lỗi khi đóng trình duyệt cũ: {e}")
+            
+            self.driver = self.initialize_driver()  # Khởi tạo mới trình duyệt
+        
             max_month = int(args.month)
             months_to_run = list(range(1, max_month + 1))
 
+            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
             print(f"Tổng Số tháng cần chạy: {len(months_to_run)}")
             print(f"Danh sách các tháng cần chạy: {months_to_run}")
             self.send_slack_notification(f"Danh sách các tháng cần chạy: {months_to_run}", self.webhook_url_bhxh)
@@ -745,14 +742,15 @@ class crawler_baohiemxahoi(base_crawler):
                 for month in months_to_run:
                     print(f"\nĐang xử lý tháng {month} cho công ty {company}")
                     retry_count = 0
+                    success_flag = False  # Cờ đánh dấu thành công
 
-                    while retry_count < max_retries:
+                    while retry_count < max_retries and not success_flag:
                         try:
                             # Mở tab mới trước khi xử lý
                             self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
                             self.driver.switch_to.window(self.driver.window_handles[-1])
 
-                            # Gọi hàm crawl
+                            # Thực hiện crawl dữ liệu
                             if not self.crawl(company, str(month), args.year):
                                 raise Exception(f"[ERROR] Lỗi khi crawl dữ liệu tháng {month}")
 
@@ -763,39 +761,71 @@ class crawler_baohiemxahoi(base_crawler):
                             if self.load_csv_to_database(engine, company, str(month), args.year):
                                 print(f"[INFO] Tháng {month} của công ty {company} lưu thành công.")
                                 company_success += 1
+                                success_flag = True  # Đánh dấu thành công
                             else:
-                                print(f"[WARNING] Tháng {month} của công ty {company} không có dữ liệu.")
-                                company_failure += 1
-
-                            # Cải thiện cách đóng các tab phụ
-                            try:
-                                handles = self.driver.window_handles
-                                if len(handles) > 1:
-                                    # Lưu lại handle của tab đầu tiên
-                                    main_handle = handles[0]
-                                    
-                                    # Đóng từng tab phụ một cách an toàn
-                                    for handle in handles[1:]:
-                                        try:
-                                            self.driver.switch_to.window(handle)
-                                            self.driver.close()
-                                        except Exception as e:
-                                            print(f"[WARNING] Không thể đóng tab {handle}: {e}")
+                                print(f"[WARNING] Tháng {month} của công ty {company} không có dữ liệu. Thực hiện retry 2 lần...")
+                                data_retries = 0
+                                data_success = False
+                                while data_retries < 2 and not data_success:
+                                    data_retries += 1
+                                    print(f"[INFO] Retry lần {data_retries} cho tháng {month}...")
+                                    try:
+                                        self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
+                                        self.driver.switch_to.window(self.driver.window_handles[-1])
+                                        if not self.crawl(company, str(month), args.year):
+                                            print(f"[ERROR] Lỗi khi crawl lại tháng {month} lần {data_retries}")
                                             continue
-                                    
-                                    # Chuyển về tab chính
-                                    self.driver.switch_to.window(main_handle)
-                            except Exception as e:
-                                print(f"[WARNING] Lỗi khi đóng các tab: {e}")
+                                        if self.load_csv_to_database(engine, company, str(month), args.year):
+                                            data_success = True
+                                            company_success += 1
+                                            print(f"[INFO] Retry thành công sau {data_retries} lần.")
+                                        else:
+                                            print(f"[WARNING] Vẫn không có dữ liệu sau retry {data_retries}.")
+                                    except Exception as e:
+                                        print(f"[ERROR] Lỗi trong quá trình retry data: {e}")
+                                    finally:
+                                        # Đóng tab dù thành công hay thất bại
+                                        try:
+                                            self.driver.close()
+                                            self.driver.switch_to.window(self.driver.window_handles[0])
+                                        except Exception as e:
+                                            print(f"[WARNING] Lỗi khi đóng tab retry: {e}")
+                                # Kiểm tra kết quả sau retry data
+                                if data_success:
+                                    success_flag = True
+                                else:
+                                    company_failure += 1
+                                    print(f"[FAILED] Tháng {month} không có dữ liệu sau 2 lần retry.")
+                                break  # Thoát luôn nếu không có dữ liệu
 
-                            break  # Nếu thành công thì thoát vòng lặp retry
+                            # Đóng tab hiện tại sau khi xử lý thành công
+                            try:
+                                current_tab = self.driver.current_window_handle
+                                self.driver.close()
+                                self.driver.switch_to.window(self.driver.window_handles[0])
+                            except Exception as e:
+                                print(f"[WARNING] Lỗi khi đóng tab: {e}")
 
                         except Exception as e:
                             retry_count += 1
                             print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty {company}, lần thử {retry_count}/{max_retries}: {e}")
-                            time.sleep(5)
+                            
+                            # Đóng tab lỗi và quay về tab chính
+                            try:
+                                if len(self.driver.window_handles) > 1:
+                                    self.driver.switch_to.window(self.driver.window_handles[-1])
+                                    self.driver.close()
+                                    self.driver.switch_to.window(self.driver.window_handles[0])
+                            except Exception as e:
+                                print(f"[WARNING] Lỗi khi dọn dẹp tab: {e}")
+                            
+                            time.sleep(5)  # Chờ 5 giây trước khi thử lại
 
-                    if retry_count == max_retries:
+                        finally:
+                            if success_flag:
+                                break  # Thoát ngay nếu đã thành công
+
+                    if not success_flag and retry_count == max_retries:
                         print(f"[FAILED] Tháng {month} của công ty {company} thất bại sau {max_retries} lần thử.")
                         company_failure += 1
 
@@ -804,56 +834,35 @@ class crawler_baohiemxahoi(base_crawler):
                 company_failure += len(months_to_run)
 
             finally:
-                # Lưu kết quả của công ty hiện tại
                 company_results[company] = {
                     "success": company_success,
                     "failure": company_failure,
                 }
                 overall_success += company_success
                 overall_failure += company_failure
-                
-                # Cải thiện cách đóng trình duyệt
+
+                # ĐÓNG TRÌNH DUYỆT SAU MỖI CÔNG TY
                 try:
-                    # Thử đóng tất cả các tab trước
-                    for handle in self.driver.window_handles:
-                        try:
-                            self.driver.switch_to.window(handle)
-                            self.driver.close()
-                        except:
-                            continue
-                except:
-                    pass
-                
-                finally:
-                    try:
-                        # Force quit trình duyệt
-                        self.driver.quit()
-                    except Exception as e:
-                        print(f"[WARNING] Không thể đóng trình duyệt bình thường, thử force quit: {e}")
-                        try:
-                            # Nếu quit() không hoạt động, thử kết thúc session
-                            self.driver.close()
-                            self.driver.session_id = None
-                        except:
-                            pass
-                    
-                    print(f"[INFO] Đã đóng trình duyệt sau khi xử lý công ty {company}")
+                    self.driver.quit()
+                except Exception as e:
+                    print(f"[WARNING] Lỗi khi đóng trình duyệt: {e}")
 
-                # Xóa file tạm sau mỗi công ty
-                self.clean_data(directory_path=".", file_extensions=(".csv", ".pdf"))
 
-        # Báo cáo tổng kết sau khi xử lý tất cả công ty
+        self.clean_data(directory_path=".", file_extensions=(".csv", ".pdf"))
+
+        # Báo cáo tổng kết và đóng trình duyệt
         print("\n=========== Báo cáo tổng kết ===========")
         self.send_slack_notification("=========== Báo cáo tổng kết ===========", self.webhook_url_bhxh)
         print(f"Tổng số công ty có trong database: {total_companies}")
-        self.send_slack_notification(f"[INFO] Tổng số công ty có trong database: {total_companies}", self.webhook_url_bhxh)
+        self.send_slack_notification(f"[INFO] Tổng số công ty có trong database: {total_companies}",self.webhook_url_bhxh)
         print(f"Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}")
-        self.send_slack_notification(f"[SUCCESS] Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}", self.webhook_url_bhxh)
-        print(f"Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}")
-        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}", self.webhook_url_bhxh)
+        self.send_slack_notification(f"[SUCCESS] Tổng số công ty chạy thành công: {sum(1 for r in company_results.values() if r['success'] > 0)}",self.webhook_url_bhxh)
         
+        print(f"Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}")
+        self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}",self.webhook_url_bhxh)
         for company, results in company_results.items():
             print(f"Công ty {company}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
-            self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng", self.webhook_url_bhxh)
-        
+            self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url_bhxh)
+
         self.driver.quit()
+        
