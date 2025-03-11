@@ -56,16 +56,16 @@ class crawler_thuedientu(base_crawler):
     # task 1 Đăng nhập vào website https://thuedientu.gdt.gov.vn/etaxnnt/Request
 
     # 1.1 Nhập username và password vào trang web 'thuedientu'
-    def login_to_thuedientu(self, driver, username, password, company):
+    def login_to_thuedientu(self, driver, username, password, company_id):
         """Đăng nhập vào trang web 'thuedientu'."""
         url = "https://thuedientu.gdt.gov.vn/etaxnnt/Request"
         driver.get(url)
         print("- Finish initializing a driver")
         time.sleep(2)
 
-        print(f"- Đang đăng nhập cho công ty: {company}")
+        print(f"- Đang đăng nhập cho công ty với id: {company_id}")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty: {company}", self.webhook_url_thuedt
+            f"[INFO] Chương trình đang login vào công ty với id: {company_id}", self.webhook_url_thuedt
         )
 
         # Nhấn nút Doanh Nghiệp
@@ -516,7 +516,7 @@ class crawler_thuedientu(base_crawler):
 
         return df
 
-    def upload_excel_to_postgres(self, db_config, company):
+    def upload_excel_to_postgres(self, db_config, company_id):
         try:
             # Tìm tất cả các file Excel với pattern data_thue_dien_tu*.xlsx
             list_of_files = glob.glob("./data_thue_dien_tu*.xlsx")
@@ -562,7 +562,7 @@ class crawler_thuedientu(base_crawler):
 
             # Thêm cột mới
             data["created_at"] = pd.to_datetime("now")
-            data["company"] = company
+            data["company_id"] = company_id
 
             # Tạo bảng data_thuedt nếu chưa tồn tại
             with engine.begin() as conn:
@@ -588,26 +588,26 @@ class crawler_thuedientu(base_crawler):
                         trang_thai VARCHAR,
                         tinh_chat_khoan_nop VARCHAR,
                         created_at TIMESTAMP,
-                        company VARCHAR NOT NULL,
-                        UNIQUE (id_khoan_phai_nop, company)
+                        company_id VARCHAR NOT NULL,
+                        UNIQUE (id_khoan_phai_nop, company_id)
                     );
                 """)
                 )
                 print("Đã kiểm tra và tạo bảng data_thuedt trong database.")
 
-                # Kiểm tra và tạo khóa ngoại company nếu chưa tồn tại
+                # Kiểm tra và tạo khóa ngoại company_id nếu chưa tồn tại
                 try:
                     conn.execute(
                         text("""
                         ALTER TABLE data_thuedt
-                        ADD CONSTRAINT fk_company FOREIGN KEY (company) 
-                        REFERENCES company_information (company) ON DELETE CASCADE;
+                        ADD CONSTRAINT fk_company_id FOREIGN KEY (company_id) 
+                        REFERENCES company_information (company_id) ON DELETE CASCADE;
                     """)
                     )
-                    print("Đã tạo khóa ngoại company trong bảng data_thuedt.")
+                    print("Đã tạo khóa ngoại company_id trong bảng data_thuedt.")
                 except Exception as e:
                     if "already exists" in str(e):
-                        print("Khóa ngoại company đã tồn tại trong bảng data_thuedt.")
+                        print("Khóa ngoại company_id đã tồn tại trong bảng data_thuedt.")
                     else:
                         raise e
 
@@ -623,7 +623,7 @@ class crawler_thuedientu(base_crawler):
                             ky_thue, ngay_quyet_dinh, tieu_muc, so_tien, 
                             loai_tien, ma_chuong, dbhc, han_nop_ngay, 
                             so_tien_da_nop, trang_thai, tinh_chat_khoan_nop, 
-                            created_at, company
+                            created_at, company_id
                         )
                         VALUES (
                             :thu_tu_thanh_toan, :co_quan_thu, :loai_nghia_vu, 
@@ -631,9 +631,9 @@ class crawler_thuedientu(base_crawler):
                             :ky_thue, :ngay_quyet_dinh, :tieu_muc, :so_tien, 
                             :loai_tien, :ma_chuong, :dbhc, :han_nop_ngay, 
                             :so_tien_da_nop, :trang_thai, :tinh_chat_khoan_nop, 
-                            :created_at, :company
+                            :created_at, :company_id
                         )
-                        ON CONFLICT (id_khoan_phai_nop, company) 
+                        ON CONFLICT (id_khoan_phai_nop, company_id) 
                         DO UPDATE SET 
                             thu_tu_thanh_toan = EXCLUDED.thu_tu_thanh_toan,
                             co_quan_thu = EXCLUDED.co_quan_thu,
@@ -665,7 +665,7 @@ class crawler_thuedientu(base_crawler):
     # Hàm lấy dữ liệu từ bảng company_information
     def fetch_company_information(self, engine):
         query = text(
-            "SELECT company, thue_username, thue_password FROM company_information;"
+            "SELECT company_id, thue_username, thue_password FROM company_information;"
         )
         try:
             with engine.connect() as conn:
@@ -675,7 +675,7 @@ class crawler_thuedientu(base_crawler):
                 # Lọc các công ty không có thue_username hoặc thue_password
                 filtered_rows = [
                     {
-                        "company": row[0],
+                        "company_id": row[0],
                         "thue_username": row[1],
                         "thue_password": row[2],
                     }
@@ -754,21 +754,21 @@ class crawler_thuedientu(base_crawler):
 
         # Xử lý từng công ty
         for idx, company_data in enumerate(company_data_list, start=1):
-            company, username, password = (
-                company_data["company"],
+            company_id, username, password = (
+                company_data["company_id"],
                 company_data["thue_username"],
                 company_data["thue_password"],
             )
 
             # Kiểm tra tính hợp lệ của dữ liệu công ty
-            if not (company and username and password):
+            if not (company_id and username and password):
                 print(
                     f"Dữ liệu công ty không hợp lệ cho công ty thứ {idx}. Kết thúc chương trình."
                 )
                 driver.quit()
                 return
 
-            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
+            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies} với id: {company_id}")
 
             try:
                 # Mở tab mới
@@ -777,7 +777,7 @@ class crawler_thuedientu(base_crawler):
                 driver.switch_to.window(new_tab)
 
                 # Đăng nhập
-                self.login_to_thuedientu(driver, username, password, company)
+                self.login_to_thuedientu(driver, username, password, company_id)
                 self.save_captcha_image(driver)
                 self.enter_verification_code(driver, captcha_image_path)
                 self.submit_form(driver, username, password, captcha_image_path)
@@ -792,18 +792,18 @@ class crawler_thuedientu(base_crawler):
                     self.adjust_column_width(unique_file_name)
 
                     # Tải dữ liệu lên cơ sở dữ liệu
-                    self.upload_excel_to_postgres(db_config, company)
+                    self.upload_excel_to_postgres(db_config, company_id)
                     successful_companies.append(
-                        company
+                        company_id
                     )  # Thêm vào danh sách thành công
                 else:
-                    failed_companies.append(company)  # Thêm vào danh sách thất bại
+                    failed_companies.append(company_id)  # Thêm vào danh sách thất bại
 
             except Exception as e:
                 print(f"Đã xảy ra lỗi: {e}")
-                failed_companies.append(company)  # Thêm vào danh sách thất bại
+                failed_companies.append(company_id)  # Thêm vào danh sách thất bại
                 # self.send_slack_notification(
-                #     f"Lỗi khi xử lý công ty {company}: {e}", self.webhook_url_thuedt
+                #     f"Lỗi khi xử lý công ty {company_id}: {e}", self.webhook_url_thuedt
                 # )
 
         # Đóng tất cả các tab sau khi hoàn tất
@@ -831,13 +831,13 @@ class crawler_thuedientu(base_crawler):
         if successful_companies:
             print("- Công ty chạy thành công:")
             self.send_slack_notification("- Công ty chạy thành công:", self.webhook_url_thuedt)
-            for company in successful_companies:
-                print(f" {company}")
-                self.send_slack_notification(f" {company}", self.webhook_url_thuedt)
+            for company_id in successful_companies:
+                print(f" {company_id}")
+                self.send_slack_notification(f" {company_id}", self.webhook_url_thuedt)
 
         if failed_companies:
             print("- Công ty chạy thất bại:")
             self.send_slack_notification("- Công ty chạy thất bại:", self.webhook_url_thuedt)
-            for company in failed_companies:
-                print(f" {company}")
-                self.send_slack_notification(f" {company}", self.webhook_url_thuedt)
+            for company_id in failed_companies:
+                print(f" {company_id}")
+                self.send_slack_notification(f" {company_id}", self.webhook_url_thuedt)
