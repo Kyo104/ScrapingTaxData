@@ -63,7 +63,7 @@ class crawler_baohiemxahoi(base_crawler):
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
     # 1. Nhập username và password vào trang web 'baohiemxahoi'
-    def login_to_baohiemxahoi(self, username, password, company):
+    def login_to_baohiemxahoi(self, username, password, company_id):
         """Đăng nhập vào trang web 'baohiemxahoi'."""
         url = "https://dichvucong.baohiemxahoi.gov.vn/#/index"
         self.driver.get(url)
@@ -88,8 +88,8 @@ class crawler_baohiemxahoi(base_crawler):
 
         # Nhấn nút Đăng nhập
         try:
-            print(f"- Đang đăng nhập cho công ty: {company}")
-            self.send_slack_notification(f"[INFO] Chương trình đang login vào công ty: {company}",self.webhook_url_bhxh)
+            print(f"- Đang đăng nhập cho công ty có id: {company_id}")
+            self.send_slack_notification(f"[INFO] Chương trình đang login vào công ty với id: {company_id}",self.webhook_url_bhxh)
             login_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), ' Đăng nhập ')]"))
             )
@@ -443,7 +443,7 @@ class crawler_baohiemxahoi(base_crawler):
             raise
 
     # Hàm trích xuất dữ liệu và xuất ra CSV:
-    def extract_specific_rows(self, pdf_path, output_csv_path, company, month, year):
+    def extract_specific_rows(self, pdf_path, output_csv_path, company_id, month, year):
         # Các tiêu đề cần tìm trong PDF
         target_keywords = [
             "Kỳ trước mang sang",
@@ -469,7 +469,7 @@ class crawler_baohiemxahoi(base_crawler):
                                 extracted_data[keyword] = row[-1]
 
         # Đảm bảo tên file CSV là duy nhất
-        output_csv_path = f"{company}_{month}_{year}_data_bhxh.csv"  # Đường dẫn lưu file CSV mặc định
+        output_csv_path = f"{company_id}_{month}_{year}_data_bhxh.csv"  # Đường dẫn lưu file CSV mặc định
         unique_csv_path = self.get_unique_filename(output_csv_path)
 
         # Tạo DataFrame và lưu ra file CSV
@@ -478,7 +478,7 @@ class crawler_baohiemxahoi(base_crawler):
         print(f"[INFO] Dữ liệu đã được lưu tại: {unique_csv_path}")
 
     # 2. Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
-    def crawl(self, company, month, year):
+    def crawl(self, company_id, month, year):
         try:
             wait = WebDriverWait(self.driver, 10)  # Thêm WebDriverWait
             
@@ -521,8 +521,8 @@ class crawler_baohiemxahoi(base_crawler):
             save_path = "BangDuLieuTheoThang.pdf"
             unique_pdf_path = self.download_tab_data(save_path)
             if unique_pdf_path:
-                output_csv_path = f"{company}_{month}_{year}_data_bhxh.csv"
-                self.extract_specific_rows(unique_pdf_path, output_csv_path, company, month, year)
+                output_csv_path = f"{company_id}_{month}_{year}_data_bhxh.csv"
+                self.extract_specific_rows(unique_pdf_path, output_csv_path, company_id, month, year)
             else:
                 print(f"[WARNING] Không tìm thấy dữ liệu cho tháng {month}. Bỏ qua tháng này.")
             return True
@@ -545,21 +545,21 @@ class crawler_baohiemxahoi(base_crawler):
             Column("month", String),
             Column("year", String),
             Column("created_at", DateTime),
-            Column("company", String(255)),
+            Column("company_id", String(255)),
         )
         metadata.create_all(engine)  # Tạo bảng nếu chưa tồn tại
         print("[INFO] Bảng 'data_bhxh' đã được tạo.")
 
-    # Thêm khóa ngoại cho cột 'company' trong bảng
+    # Thêm khóa ngoại cho cột 'company_id' trong bảng
     def add_foreign_key(self, engine):
-        """Thêm khóa ngoại cho cột 'company' trong bảng 'data_bhxh' nếu chưa tồn tại."""
+        """Thêm khóa ngoại cho cột 'company_id' trong bảng 'data_bhxh' nếu chưa tồn tại."""
         with engine.begin() as connection:
             try:
                 # Kiểm tra xem khóa ngoại đã tồn tại hay chưa
                 result = connection.execute(text("""
                     SELECT 1 
                     FROM information_schema.table_constraints 
-                    WHERE constraint_name = 'fk_company' 
+                    WHERE constraint_name = 'fk_company_id' 
                     AND table_name = 'data_bhxh';
                 """))
                 exists = result.fetchone()
@@ -568,26 +568,26 @@ class crawler_baohiemxahoi(base_crawler):
                     # Nếu khóa ngoại chưa tồn tại, thêm vào
                     connection.execute(text("""
                         ALTER TABLE data_bhxh
-                        ADD CONSTRAINT fk_company
-                        FOREIGN KEY (company) REFERENCES company_information (company);
+                        ADD CONSTRAINT fk_company_id
+                        FOREIGN KEY (company_id) REFERENCES company_information (company_id);
                     """))
                     print("[INFO] Khóa ngoại đã được thêm thành công.")
                 else:
-                    print("[INFO] Khóa ngoại 'fk_company' đã tồn tại, bỏ qua.")
+                    print("[INFO] Khóa ngoại 'fk_company_id' đã tồn tại, bỏ qua.")
 
             except Exception as e:
                 print(f"[WARNING] Không thể thêm khóa ngoại: {e}")
 
     # Lưu dữ liệu từ file CSV vào database
 
-    def load_csv_to_database(self, engine, company, month, year):
+    def load_csv_to_database(self, engine, company_id, month, year):
         try:
             # Tạo tên file theo định dạng: {tên công ty}_data_bhxh*.csv
-            file_pattern = f"{company}_{month}_{year}_data_bhxh*.csv"
+            file_pattern = f"{company_id}_{month}_{year}_data_bhxh*.csv"
             list_of_files = glob.glob(file_pattern)
 
             if not list_of_files:
-                print(f"[WARNING] Không tìm thấy file CSV nào cho công ty {company}, tháng {month}.")
+                print(f"[WARNING] Không tìm thấy file CSV nào cho công ty có id {company_id}, tháng {month}.")
                 return False
 
             # Lấy file CSV mới nhất
@@ -608,20 +608,20 @@ class crawler_baohiemxahoi(base_crawler):
 
             # Bắt đầu transaction
             with connection.begin():
-                # Xóa tất cả các bản ghi cũ trùng lặp trong bảng (cùng company, month, year)
+                # Xóa tất cả các bản ghi cũ trùng lặp trong bảng (cùng company_id, month, year)
                 connection.execute(text("""
                     DELETE FROM data_bhxh
-                    WHERE company = :company AND month = :month AND year = :year;
-                """), {"company": company, "month": month, "year": year})
+                    WHERE company_id = :company_id AND month = :month AND year = :year;
+                """), {"company_id": company_id, "month": month, "year": year})
 
                 # Thêm dữ liệu mới vào bảng và đặt is_latest = True cho tất cả
-                df["company"] = company
+                df["company_id"] = company_id
                 df["month"] = month
                 df["year"] = year
                 df["created_at"] = current_time
                 df.to_sql("data_bhxh", engine, if_exists="append", index=False)
 
-            print(f"[INFO] Dữ liệu đã được cập nhật cho công ty {company}, tháng {month}, năm {year}.")
+            print(f"[INFO] Dữ liệu đã được cập nhật cho công ty {company_id}, tháng {month}, năm {year}.")
             return True
 
         except Exception as e:
@@ -631,7 +631,7 @@ class crawler_baohiemxahoi(base_crawler):
     # Hàm lấy dữ liệu từ bảng company_information
 
     def fetch_company_information(self, engine):
-        query = text("SELECT company, bhxh_username, bhxh_password FROM company_information;")
+        query = text("SELECT company_id, bhxh_username, bhxh_password FROM company_information;")
         try:
             with engine.connect() as conn:
                 result = conn.execute(query)
@@ -639,7 +639,7 @@ class crawler_baohiemxahoi(base_crawler):
 
                 # Lọc các công ty không có bhxh_username hoặc bhxh_password
                 filtered_rows = [
-                    {"company": row[0], "bhxh_username": row[1], "bhxh_password": row[2]}
+                    {"company_id": row[0], "bhxh_username": row[1], "bhxh_password": row[2]}
                     for row in rows
                     if row[1] and row[2]
                 ]
@@ -704,8 +704,8 @@ class crawler_baohiemxahoi(base_crawler):
         company_results = {}
 
         for idx, company_data in enumerate(companies, start=1):
-            company, username, password = (
-                company_data["company"],
+            company_id, username, password = (
+                company_data["company_id"],
                 company_data["bhxh_username"],
                 company_data["bhxh_password"],
             )
@@ -722,7 +722,7 @@ class crawler_baohiemxahoi(base_crawler):
             max_month = int(args.month)
             months_to_run = list(range(1, max_month + 1))
 
-            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company}")
+            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies}: {company_id}")
             print(f"Tổng Số tháng cần chạy: {len(months_to_run)}")
             print(f"Danh sách các tháng cần chạy: {months_to_run}")
             self.send_slack_notification(f"Danh sách các tháng cần chạy: {months_to_run}", self.webhook_url_bhxh)
@@ -732,7 +732,7 @@ class crawler_baohiemxahoi(base_crawler):
 
             try:
                 # Đăng nhập vào hệ thống
-                self.login_to_baohiemxahoi(username, password, company)
+                self.login_to_baohiemxahoi(username, password, company_id)
                 self.save_captcha_image(self.driver)
                 self.enter_verification_code(self.driver, captcha_image_path)
                 self.submit_form(self.driver, username, password, captcha_image_path)
@@ -740,7 +740,7 @@ class crawler_baohiemxahoi(base_crawler):
                 # Số lần thử lại tối đa nếu crawl thất bại
                 max_retries = 3 
                 for month in months_to_run:
-                    print(f"\nĐang xử lý tháng {month} cho công ty {company}")
+                    print(f"\nĐang xử lý tháng {month} cho công ty với id {company_id}")
                     retry_count = 0
                     success_flag = False  # Cờ đánh dấu thành công
 
@@ -751,19 +751,19 @@ class crawler_baohiemxahoi(base_crawler):
                             self.driver.switch_to.window(self.driver.window_handles[-1])
 
                             # Thực hiện crawl dữ liệu
-                            if not self.crawl(company, str(month), args.year):
+                            if not self.crawl(company_id, str(month), args.year):
                                 raise Exception(f"[ERROR] Lỗi khi crawl dữ liệu tháng {month}")
 
                             # Lưu dữ liệu vào database
                             self.create_data_bhxh_table(engine)
                             self.add_foreign_key(engine)
 
-                            if self.load_csv_to_database(engine, company, str(month), args.year):
-                                print(f"[INFO] Tháng {month} của công ty {company} lưu thành công.")
+                            if self.load_csv_to_database(engine, company_id, str(month), args.year):
+                                print(f"[INFO] Tháng {month} của công ty với id {company_id} lưu thành công.")
                                 company_success += 1
                                 success_flag = True  # Đánh dấu thành công
                             else:
-                                print(f"[WARNING] Tháng {month} của công ty {company} không có dữ liệu. Thực hiện retry 2 lần...")
+                                print(f"[WARNING] Tháng {month} của công ty với id {company_id} không có dữ liệu. Thực hiện retry 2 lần...")
                                 data_retries = 0
                                 data_success = False
                                 while data_retries < 2 and not data_success:
@@ -772,10 +772,10 @@ class crawler_baohiemxahoi(base_crawler):
                                     try:
                                         self.driver.execute_script("window.open('https://dichvucong.baohiemxahoi.gov.vn/#/index', '_blank');")
                                         self.driver.switch_to.window(self.driver.window_handles[-1])
-                                        if not self.crawl(company, str(month), args.year):
+                                        if not self.crawl(company_id, str(month), args.year):
                                             print(f"[ERROR] Lỗi khi crawl lại tháng {month} lần {data_retries}")
                                             continue
-                                        if self.load_csv_to_database(engine, company, str(month), args.year):
+                                        if self.load_csv_to_database(engine, company_id, str(month), args.year):
                                             data_success = True
                                             company_success += 1
                                             print(f"[INFO] Retry thành công sau {data_retries} lần.")
@@ -808,7 +808,7 @@ class crawler_baohiemxahoi(base_crawler):
 
                         except Exception as e:
                             retry_count += 1
-                            print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty {company}, lần thử {retry_count}/{max_retries}: {e}")
+                            print(f"[ERROR] Lỗi khi xử lý tháng {month} cho công ty với id {company_id}, lần thử {retry_count}/{max_retries}: {e}")
                             
                             # Đóng tab lỗi và quay về tab chính
                             try:
@@ -826,15 +826,15 @@ class crawler_baohiemxahoi(base_crawler):
                                 break  # Thoát ngay nếu đã thành công
 
                     if not success_flag and retry_count == max_retries:
-                        print(f"[FAILED] Tháng {month} của công ty {company} thất bại sau {max_retries} lần thử.")
+                        print(f"[FAILED] Tháng {month} của công ty với id {company_id} thất bại sau {max_retries} lần thử.")
                         company_failure += 1
 
             except Exception as e:
-                print(f"[ERROR] Lỗi khi xử lý công ty {company}: {e}")
+                print(f"[ERROR] Lỗi khi xử lý công ty có id {company_id}: {e}")
                 company_failure += len(months_to_run)
 
             finally:
-                company_results[company] = {
+                company_results[company_id] = {
                     "success": company_success,
                     "failure": company_failure,
                 }
@@ -860,9 +860,9 @@ class crawler_baohiemxahoi(base_crawler):
         
         print(f"Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}")
         self.send_slack_notification(f"[FAILED] Tổng số công ty chạy thất bại: {sum(1 for r in company_results.values() if r['success'] == 0)}",self.webhook_url_bhxh)
-        for company, results in company_results.items():
-            print(f"Công ty {company}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
-            self.send_slack_notification(f"[INFO] Công ty {company}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url_bhxh)
+        for company_id, results in company_results.items():
+            print(f"Công ty có id {company_id}: Thành công {results['success']} tháng, Thất bại {results['failure']} tháng")
+            self.send_slack_notification(f"[INFO] Công ty có id {company_id}: Lấy dữ liệu Thành công {results['success']} tháng, Thất bại {results['failure']} tháng",self.webhook_url_bhxh)
 
         self.driver.quit()
         
