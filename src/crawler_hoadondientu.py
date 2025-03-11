@@ -51,9 +51,9 @@ class crawler_hoaddondientu(base_crawler):
         trang_thai VARCHAR(255),
         image_drive_path VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        company VARCHAR(255),
+        company_id VARCHAR(255),
         loai_hoa_don VARCHAR(10), -- Thêm cột loại hóa đơn
-        UNIQUE (company, so_hoa_don, loai_hoa_don) 
+        UNIQUE (company_id, so_hoa_don, loai_hoa_don) 
     );
     """
     # Tạo khóa ngoại nếu chưa tồn tại
@@ -63,13 +63,13 @@ class crawler_hoaddondientu(base_crawler):
         IF NOT EXISTS (
             SELECT 1 
             FROM information_schema.table_constraints 
-            WHERE constraint_name = 'fk_company' 
+            WHERE constraint_name = 'fk_company_id' 
             AND table_name = 'data_hoadon'
         ) THEN
             ALTER TABLE data_hoadon 
-            ADD CONSTRAINT fk_company 
-            FOREIGN KEY (company) 
-            REFERENCES company_information (company);
+            ADD CONSTRAINT fk_company_id
+            FOREIGN KEY (company_id) 
+            REFERENCES company_information (company_id);
         END IF;
     END $$;
     """
@@ -117,14 +117,14 @@ class crawler_hoaddondientu(base_crawler):
         return self.args
 
     # 1.1 Nhập username và password vào trang web 'hoadondientu'
-    def login_to_hoadondientu(self, driver, username, password, company):
+    def login_to_hoadondientu(self, driver, username, password, company_id):
         """Đăng nhập vào trang web 'hoadondientu'."""
 
         url = "https://hoadondientu.gdt.gov.vn/"
         driver.get(url)
         print("- Finish initializing a driver")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty: <{company}>", self.webhook_url_hddt
+            f"[INFO] Chương trình đang login vào công ty: <{company_id}>", self.webhook_url_hddt
         )
         time.sleep(3)
 
@@ -1151,7 +1151,7 @@ class crawler_hoaddondientu(base_crawler):
             )
 
     # ==================== Tạo thư mục hóa đơn trên Google Drive ==================== #
-    def create_invoice_directory_on_drive(self, service, company):
+    def create_invoice_directory_on_drive(self, service, company_id):
         """Tạo thư mục hóa đơn trên Google Drive và trả về ID của thư mục chính và thư mục con."""
         # Tìm thư mục chính 'HoaDon'
         query = "mimeType='application/vnd.google-apps.folder' and name='HoaDon'"
@@ -1172,7 +1172,7 @@ class crawler_hoaddondientu(base_crawler):
 
         # Tạo thư mục con với tên công ty và thời gian hiện tại
         current_time = datetime.now()
-        subfolder_name = f"{company}_{current_time.strftime('%d/%m/%Y_%H:%M:%S')}"
+        subfolder_name = f"{company_id}_{current_time.strftime('%d/%m/%Y_%H:%M:%S')}"
         subfolder_metadata = {
             "name": subfolder_name,
             "mimeType": "application/vnd.google-apps.folder",
@@ -1238,7 +1238,7 @@ class crawler_hoaddondientu(base_crawler):
 
     
     # Hàm lưu dữ liệu vào database
-    def save_to_database(self, data, image_paths, drive_image_paths, company, loai_hoa_don):
+    def save_to_database(self, data, image_paths, drive_image_paths, company_id, loai_hoa_don):
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -1258,9 +1258,9 @@ class crawler_hoaddondientu(base_crawler):
                         invoice_query = """
                             INSERT INTO data_hoadon (mau_so, ky_hieu, so_hoa_don, ngay_lap, mst_nguoi_mua, ten_nguoi_mua, mst_nguoi_ban, ten_nguoi_ban, 
                                                     tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
-                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company, loai_hoa_don)
+                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, loai_hoa_don)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s)
-                            ON CONFLICT (company, so_hoa_don, loai_hoa_don) DO UPDATE
+                            ON CONFLICT (company_id, so_hoa_don, loai_hoa_don) DO UPDATE
                             SET mau_so = EXCLUDED.mau_so,
                             ngay_lap = EXCLUDED.ngay_lap,
                             mst_nguoi_mua = EXCLUDED.mst_nguoi_mua,
@@ -1300,7 +1300,7 @@ class crawler_hoaddondientu(base_crawler):
                             row.get("don_vi_tien_te", ""),
                             row.get("trang_thai", ""),
                             drive_image_path,
-                            company,
+                            company_id,
                             loai_hoa_don
                         )
 
@@ -1316,7 +1316,7 @@ class crawler_hoaddondientu(base_crawler):
             print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
 
     # Quy trình database chính
-    def main_db_workflow(self, service, company, username, password):
+    def main_db_workflow(self, service, company_id, username, password):
         # Tạo bảng nếu chưa tồn tại
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -1325,7 +1325,7 @@ class crawler_hoaddondientu(base_crawler):
                 
         # Tạo thư mục trên Google Drive
         main_folder_id, subfolder_id = self.create_invoice_directory_on_drive(
-            service, company
+            service, company_id
         )
         
         for loai_hoa_don, csv_pattern, img_pattern in [
@@ -1355,43 +1355,41 @@ class crawler_hoaddondientu(base_crawler):
                 }
                 df1.rename(columns=column_mapping, inplace=True)
                 print("Đã đổi tên các cột trong file CSV:")
-                print(df1.head())
-                
+                # print(df1.head())
+
                 # Xử lý dữ liệu trong file CSV
                 df2 = df1.copy()
                 if loai_hoa_don == "bán ra":
                     # Tách MST người mua và Tên người mua từ cột "Thông tin hóa đơn"
-                    df2[['mst_nguoi_mua', 'ten_nguoi_mua']] = df2['thong_tin_hoa_don_ban_ra'].str.extract(r'MST người mua:\s*(\d+)\s*\n\s*Tên người mua:\s*(.+)')
+                    df2[['mst_nguoi_mua', 'ten_nguoi_mua']] = df2['thong_tin_hoa_don_ban_ra'].str.extract(r'MST người mua:\s*([\d\-]+)\s*\n\s*Tên người mua:\s*(.+)')
                     # Chèn các cột mới vào vị trí tương ứng
                     thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_ban_ra')
                     df2.insert(thong_tin_index, 'mst_nguoi_mua', df2.pop('mst_nguoi_mua'))
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_mua', df2.pop('ten_nguoi_mua'))
                     print("Đã xử lý dữ liệu cho hóa đơn bán ra:")
-                    # print(df1[['thong_tin_hoa_don_ban_ra']].head())
-                    # print(df2[['thong_tin_hoa_don_ban_ra', 'mst_nguoi_mua', 'ten_nguoi_mua']].head())
+                    print(df2[['thong_tin_hoa_don_ban_ra', 'mst_nguoi_mua', 'ten_nguoi_mua']].head())
                 elif loai_hoa_don == "mua vào":
                     # Tách MST người bán và Tên người bán từ cột "Thông tin người bán"
-                    df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao'].str.extract(r'MST người bán:\s*(\d+)\s*\n\s*Tên người bán:\s*(.+)')
+                    df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao'].str.extract(r'MST người bán:\s*([\d\-]+)\s*\n\s*Tên người bán:\s*(.+)')
                     # Chèn các cột mới vào vị trí tương ứng
                     thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_mua_vao')
                     df2.insert(thong_tin_index, 'mst_nguoi_ban', df2.pop('mst_nguoi_ban'))
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_ban', df2.pop('ten_nguoi_ban'))
                     print("Đã xử lý dữ liệu cho hóa đơn mua vào:")
-                    # print(df1[['thong_tin_hoa_don_mua_vao']].head())
-                    # print(df2[['thong_tin_hoa_don_mua_vao', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
-                
+                    print(df2[['thong_tin_hoa_don_mua_vao', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
+
                 # Lưu dữ liệu vào database
                 drive_image_paths = [
                     self.upload_image_to_drive(service, img, subfolder_id) for img in images if os.path.exists(img)
                 ]
-                
-                self.save_to_database(df2, images, drive_image_paths, company, loai_hoa_don)
+
+                self.save_to_database(df2, images, drive_image_paths, company_id, loai_hoa_don)
                 print(f"Processed {loai_hoa_don} data from {csv_file}")
 
     # Hàm lấy dữ liệu từ bảng company_information
     def fetch_company_information(self):
         query = (
-            "SELECT company, hoadon_username, hoadon_password FROM company_information;"
+            "SELECT company_id, hoadon_username, hoadon_password FROM company_information;"
         )
         try:
             with psycopg2.connect(**self.db_config) as conn:
@@ -1495,12 +1493,12 @@ class crawler_hoaddondientu(base_crawler):
 
 
             for idx, company_data in enumerate(company_data_list, start=1):
-                company, username, password = (
-                    company_data["company"],
+                company_id, username, password = (
+                    company_data["company_id"],
                     company_data["hoadon_username"],
                     company_data["hoadon_password"],
                 )
-                print(f"Đang xử lý công ty thứ {idx}: {company}")
+                print(f"Đang xử lý công ty thứ {idx}: {company_id}")
 
                 success_months = []
                 failed_months = []
@@ -1510,7 +1508,7 @@ class crawler_hoaddondientu(base_crawler):
                 driver.switch_to.window(new_tab)
 
                 try:
-                    self.login_to_hoadondientu(driver, username, password, company)
+                    self.login_to_hoadondientu(driver, username, password, company_id)
                     self.crawl_img(driver)
                     self.enter_verification_code(driver, captcha_image_path)
                     self.submit_form(driver, captcha_image_path)
@@ -1525,20 +1523,20 @@ class crawler_hoaddondientu(base_crawler):
                             self.crawl_hoa_don_ban_ra(driver)
                             self.extract_table_ban_ra_to_csv(driver, output_file_ra)
                             self.extract_img_hoa_don_ban_ra(driver)
-                            self.main_db_workflow(service, company, username, password)
+                            self.main_db_workflow(service, company_id, username, password)
                             success_months.append(month)
                         except Exception as e:
                             print(
-                                f"[ERROR] Thất bại khi xử lý tháng {month} cho công ty {company}: {e}"
+                                f"[ERROR] Thất bại khi xử lý tháng {month} cho công ty với id {company_id}: {e}"
                             )
                             failed_months.append(month)
                             continue
 
-                    company_results[company] = (success_months, failed_months)
+                    company_results[company_id] = (success_months, failed_months)
 
                 except Exception as e:
-                    print(f"Lỗi khi xử lý công ty {company}: {e}")
-                    company_results[company] = ([], months_to_crawl)
+                    print(f"Lỗi khi xử lý công ty {company_id}: {e}")
+                    company_results[company_id] = ([], months_to_crawl)
                 finally:
                     driver.close()
                     if driver.window_handles:
@@ -1549,7 +1547,7 @@ class crawler_hoaddondientu(base_crawler):
         finally:
             if not any(success for success, fail in company_results.values()):
                 company_results = {
-                    company_data["company"]: ([], months_to_crawl)
+                    company_data["company_id"]: ([], months_to_crawl)
                     for company_data in company_data_list
                 }
             
@@ -1587,16 +1585,16 @@ class crawler_hoaddondientu(base_crawler):
                 self.webhook_url_hddt,
             )
 
-            for company, (success_months, failed_months) in company_results.items():
+            for company_id, (success_months, failed_months) in company_results.items():
                 success_text = f"Thành công {len(success_months)} tháng" + (
                     f" ({', '.join(success_months)})" if success_months else ""
                 )
                 fail_text = f"Thất bại {len(failed_months)} tháng" + (
                     f" ({', '.join(failed_months)})" if failed_months else ""
                 )
-                print(f"Công ty {company}: {success_text}, {fail_text}")
+                print(f"Công ty với id {company_id}: {success_text}, {fail_text}")
                 self.send_slack_notification(
-                    f"Công ty {company}: {success_text}, {fail_text}", self.webhook_url_hddt
+                    f"Công ty với id {company_id}: {success_text}, {fail_text}", self.webhook_url_hddt
                 )
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
