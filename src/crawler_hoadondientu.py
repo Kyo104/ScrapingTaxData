@@ -52,6 +52,7 @@ class crawler_hoaddondientu(base_crawler):
         image_drive_path VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         company_id VARCHAR(255),
+        company_name VARCHAR(255),
         loai_hoa_don VARCHAR(10), -- Thêm cột loại hóa đơn
         UNIQUE (company_id, so_hoa_don, loai_hoa_don) 
     );
@@ -117,14 +118,14 @@ class crawler_hoaddondientu(base_crawler):
         return self.args
 
     # 1.1 Nhập username và password vào trang web 'hoadondientu'
-    def login_to_hoadondientu(self, driver, username, password, company_id):
+    def login_to_hoadondientu(self, driver, username, password, company_id, company_name):
         """Đăng nhập vào trang web 'hoadondientu'."""
 
         url = "https://hoadondientu.gdt.gov.vn/"
         driver.get(url)
         print("- Finish initializing a driver")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty: <{company_id}>", self.webhook_url_hddt
+            f"[INFO] Chương trình đang login vào công ty có id: {company_id} - tên {company_name}", self.webhook_url_hddt
         )
         time.sleep(3)
 
@@ -133,14 +134,14 @@ class crawler_hoaddondientu(base_crawler):
                 EC.element_to_be_clickable(
                     (By.XPATH, "/html/body/div[2]/div/div[2]/div/div[2]/button/span")
                 )
-            )
+            )                   
             X_button.click()
-            print("- Finish: Tắt thông báo")
+            print("[SUCCESS] - Finish task 1: Tắt thông báo")
         except TimeoutException:
-            print("X_button không hiển thị hoặc không thể nhấn")
+            print("[DEBUG] X_button không hiển thị hoặc không thể nhấn")
             pass
         except Exception as e:
-            print(f"Đã xảy ra lỗi: {e}")
+            print("[ERROR] Đã xảy ra lỗi: X_button click failed")
 
         # Nhấn nút logout
         try:
@@ -150,9 +151,9 @@ class crawler_hoaddondientu(base_crawler):
                 )
             )
             logout_button.click()
-            print("- Finish: logout to hoadondientu")
+            print("[SUCCESS] - Finish: logout to hoadondientu")
         except TimeoutException:
-            print("logout_button không hiển thị hoặc không thể nhấn")
+            print("[DEBUG] logout_button không hiển thị hoặc không thể nhấn")
             pass
 
         # Nhấn nút Đăng nhập
@@ -166,19 +167,20 @@ class crawler_hoaddondientu(base_crawler):
                 )
             )
             login_button.click()
-            print("- Finish: Login to hoadondientu")
+            print("[SUCCESS] - Finish task 2: Login to hoadondientu")
         except TimeoutException:
-            print("Login button không hiển thị hoặc không thể nhấn")
+            print("[DEBUG] Login button không hiển thị hoặc không thể nhấn")
         # Nhập username
         username_field = driver.find_element(By.ID, "username")
         username_field.send_keys(username)
-        print("- Finish keying in username_field")
+        print("[SUCCESS] - Finish keying in username_field")
+        print(f"- Username_field: {username}")
         time.sleep(3)
 
         # Nhập password
         password_field = driver.find_element(By.ID, "password")
         password_field.send_keys(password)
-        print("- Finish keying in password_field")
+        print("[SUCCESS] - Finish keying in password_field")
         time.sleep(2)
 
     # lưu ảnh captcha về máy dưới dạng svg (tải ảnh về chuẩn rồi)
@@ -207,17 +209,17 @@ class crawler_hoaddondientu(base_crawler):
                 with open(file_name, "wb") as f:
                     f.write(img_data)
 
-                print(f"Ảnh đã được tải về và lưu thành công với tên: {file_name}")
+                print(f"[SUCCESS] Ảnh đã được tải về và lưu thành công với tên: {file_name}")
 
             else:
-                print("Không tìm thấy ảnh SVG base64 trong src của thẻ img.")
+                print("[ERROR] Không tìm thấy ảnh SVG base64 trong src của thẻ img.")
                 self.send_slack_notification(
                     "[ERROR] Workflow crawling data hoadondientu failed",
                     self.webhook_url_hddt,
                 )
 
         except Exception as e:
-            print(f"Đã xảy ra lỗi: {e}")
+            print("[ERROR] Đã xảy ra lỗi: lưu ảnh captcha về máy")
             self.send_slack_notification(
                 "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
@@ -247,17 +249,17 @@ class crawler_hoaddondientu(base_crawler):
 
             # Kiểm tra xem API trả về thành công
             if response_data.get("success") and "captcha" in response_data:
-                print(f"Mã captcha đã giải: {response_data['captcha']}")
+                print(f"[INFO] Mã captcha đã giải: {response_data['captcha']}")
                 return response_data["captcha"]
             else:
-                print(f"API response indicates failure: {response_data}")
+                print(f"[INFO] API response indicates failure: {response_data}")
                 self.send_slack_notification(
                     f"[ERROR] Workflow crawling data hoadondientu failed {response_data}",
                     self.webhook_url_hddt,
                 )
                 return None
         except Exception as e:
-            print(f"Error with request: {str(e)}")
+            print("[ERROR] Error with request: gửi ảnh đến AntiCaptcha")
             self.send_slack_notification(
                 "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
@@ -290,7 +292,7 @@ class crawler_hoaddondientu(base_crawler):
             # Trả về mã captcha đã giải, không in ra nhiều lần
             return captcha_text
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(f"[ERROR] An error occurred: xử lý ảnh captcha và gửi lên")
             self.send_slack_notification(
                 "[ERROR] Workflow crawling data hoadondientu failed", self.webhook_url_hddt
             )
@@ -327,67 +329,91 @@ class crawler_hoaddondientu(base_crawler):
 
             return True
         except Exception as e:
-            print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+            print(f"[ERROR] Lỗi khi nhập mã CAPTCHA trên website")
             return False
 
     # 1.3 Nhấn nút đăng nhập sau cùng hoàn tất việc login vào trang web
     def submit_form(self, driver, captcha_image_path):
         """Nhấn nút để hoàn tất đăng nhập."""
         login_attempt = 0  # Biến đếm số lần đăng nhập
+        max_attempts = 3  # Giới hạn số lần thử tối đa
 
         try:
-            while True:
+            while login_attempt < max_attempts:
                 # Nhấn nút để gửi biểu mẫu
+                login_attempt +=1
+                
                 submit_button = driver.find_element(
                     By.XPATH,
                     "/html/body/div[2]/div/div[2]/div/div[2]/div[2]/form/div/div[6]/button",
                 )
                 submit_button.click()
-                print(f"- Finish submitting the form (Lần {login_attempt + 1})")
+                print(f"[DEBUG] - Finish submitting the form (Lần {login_attempt})")
                 self.send_slack_notification(
-                    f"[INFO] Chương trình đang thực hiên login lần {login_attempt + 1}",
+                    f"[INFO] Chương trình đang thực hiên login lần {login_attempt}",
                     self.webhook_url_hddt,
                 )
+                
                 # Kiểm tra nếu có thông báo lỗi CAPTCHA
                 try:
                     # Chờ thông báo lỗi CAPTCHA
                     error_message = WebDriverWait(driver, 2).until(
                         EC.presence_of_element_located(
-                            (
-                                By.XPATH,
-                                '//*[contains(text(), "Mã captcha không đúng.")]',
-                            )
+                            (By.XPATH, '//*[contains(text(), "Mã captcha không đúng.")]')
                         )
                     )
                     if error_message:
-                        print("[WARNING] Mã xác nhận nhập sai. Đang thử lại...")
+                        print(f"[ERROR] Mã xác thực không chính xác (Lần {login_attempt}/{max_attempts})")
                         self.send_slack_notification(
                             "[WARNING] Login thất bại. Đang thử lại...",
                             self.webhook_url_hddt,
                         )
-                        # Lưu và giải mã CAPTCHA mới
+                        if login_attempt >= max_attempts:
+                            print("[ERROR] Quá số lần thử, bỏ qua công ty này.")
+                            raise Exception("[ERROR] Quá số lần thử đăng nhập, bỏ qua công ty.")
+                        
+                        # Lưu CAPTCHA mới và giải mã CAPTCHA mới
                         self.crawl_img(driver)
-                        # enter_verification_code(driver, captcha_image_path) # Tự động
                         self.enter_verification_code(driver, captcha_image_path)
-                        login_attempt += 1  # Tăng số lần thử đăng nhập
                         continue  # Thử lại
+                    
                 except TimeoutException:
                     print("[DEBUG] Mã xác nhận được xác thực thành công")
-
-                    # Kiểm tra nếu đăng nhập thành công
+                    
+                # Kiểm tra nếu có lỗi tên đăng nhập hoặc mật khẩu sai
                 try:
-                    # Chờ thẻ div có id "ddtabs1" xuất hiện
-                    WebDriverWait(driver, 10).until(
+                    error_message = WebDriverWait(driver, 2).until(
                         EC.presence_of_element_located(
-                            (By.CLASS_NAME, "ant-row-flex.flex-space")
+                            (By.XPATH, '//*[contains(text(), "Tên đăng nhập hoặc mật khẩu không đúng")]')
                         )
                     )
-                    # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text "Tra cứu"
-                    tra_cuu_element = driver.find_element(
-                        By.XPATH,
-                        '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span',
+                    if error_message:
+                        print(f"[ERROR] có thông báo Tên đăng nhập hoặc mật khẩu không đúng.(Lần {login_attempt}/{max_attempts})")
+                        self.send_slack_notification(
+                            "[WARNING] Login thất bại. Đang thử lại...",
+                            self.webhook_url_hddt,
+                        )
+                        if login_attempt >= max_attempts:
+                            print("[ERROR] Quá số lần thử, bỏ qua công ty này.")
+                            raise Exception("[ERROR] Quá số lần thử đăng nhập, bỏ qua công ty.")
+                        
+                        # Lưu CAPTCHA mới và giải mã CAPTCHA mới
+                        self.crawl_img(driver)
+                        self.enter_verification_code(driver, captcha_image_path)
+                        continue  # Thử lại
+                        
+                except TimeoutException:
+                    print("[DEBUG] Thông tin đăng nhập hợp lệ, tiếp tục kiểm tra đăng nhập thành công.")
+                    
+                # Kiểm tra nếu có nút logout thì đăng nhập thành công
+                try:
+                    X_button = WebDriverWait(driver, 15).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, "/html/body/div[1]/section/header/div[2]/button[2]")
+                        )               
                     )
-                    if tra_cuu_element:
+                    
+                    if X_button:
                         print(
                             "[SUCCESS] Chương trình đã login thành công vào trang HDDT"
                         )
@@ -395,25 +421,21 @@ class crawler_hoaddondientu(base_crawler):
                             "[SUCCESS] Đăng nhập thành công! Đã vào trang chính.",
                             self.webhook_url_hddt,
                         )
-                        if login_attempt == 0:
+                        if login_attempt == 1:
                             self.crawl(driver)  # Lần đầu tiên, gọi hàm crawl
                         else:
                             self.crawls(driver)  # Các lần tiếp theo, gọi hàm crawls
                         return  # Thoát khỏi hàm khi thành công
                 except TimeoutException:
-                    print(
-                        "[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại..."
-                    )
-                    self.send_slack_notification(
-                        "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
-                    )
-                    login_attempt += 1  # Tăng số lần thử đăng nhập
-                    continue  # Thử lại nếu không tìm thấy dấu hiệu thành công
+                    print(f"[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công (Lần {login_attempt}/{max_attempts})")
+                
+                # Nếu đến đây nghĩa là sau `max_attempts` lần vẫn chưa đăng nhập được
+            print("[ERROR] Đăng nhập thất bại sau 3 lần thử, bỏ qua công ty này.")
+            raise Exception("[ERROR] Đăng nhập thất bại sau 3 lần thử.")
 
                 # Nếu không vào được vòng lặp, thoát ra
-                break
         except Exception as e:
-            print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
+            print(f"[ERROR] Đã xảy ra lỗi khi nhấn nút submit khi login:")
             self.send_slack_notification(
                 "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
             )
@@ -423,18 +445,18 @@ class crawler_hoaddondientu(base_crawler):
         # Nhấn nút tra cứu
         tra_cuu_button = driver.find_element(
             By.XPATH,
-            '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span',
+            '/html/body/div/section/section/div/div/div/div/div[8]/div/span',
         )
         tra_cuu_button.click()
-        print("- Finish click tra cứu")
+        print("[SUCCESS] - Finish click tra cứu")
         time.sleep(3)
 
         # Chọn vào mục ( Tra cứu hóa đơn )
         tra_cuu_hd_button = driver.find_element(
-            By.XPATH, "/html/body/div[3]/div/div/ul/li[1]/a"
+            By.XPATH, "/html/body/div[2]/div/div/ul/li[1]/a"
         )               
         tra_cuu_hd_button.click()
-        print("- Finish click tra cứu hóa đơn")
+        print("[SUCCESS] - Finish click tra cứu hóa đơn")
         time.sleep(3)
 
     # 2.2 chọn vào mục ( Tra cứu hóa đơn ) khi giải captcha các lần sau thành công
@@ -442,10 +464,11 @@ class crawler_hoaddondientu(base_crawler):
         # Nhấn nút tra cứu
         tra_cuu_button = driver.find_element(
             By.XPATH,
-            '//*[@id="__next"]/section/section/div/div/div/div/div[8]/div/span',
+            '/html/body/div[1]/section/section/div/div/div/div/div[8]/div/span',
         )
+        
         tra_cuu_button.click()
-        print("- Finish click tra cứu")
+        print("[SUCCESS] - Finish click tra cứu")
         time.sleep(3)
 
         # Chọn vào mục ( Tra cứu hóa đơn )
@@ -453,7 +476,7 @@ class crawler_hoaddondientu(base_crawler):
             By.XPATH, "/html/body/div[3]/div/div/ul/li[1]/a"
         )
         tra_cuu_hd_button.click()
-        print("- Finish click tra cứu hóa đơn")
+        print("[SUCCESS] - Finish click tra cứu hóa đơn")
         time.sleep(3)
 
     def navigate_to_first_day_of_month(self, driver, months_to_go_back=0):
@@ -480,14 +503,14 @@ class crawler_hoaddondientu(base_crawler):
                 if day.text.strip() == "1":
                     day.click()
                     print(
-                        f"- Navigated to first day of the month, went back {months_to_go_back} months"
+                        f"[DEBUG] - Navigated to first day of the month, went back {months_to_go_back} months"
                     )
                     return True
 
-            raise Exception("Could not find day '1' in the first row")
+            raise Exception("[DEBUG] Could not find day '1' in the first row")
 
         except Exception as e:
-            print("[ERROR] Failed to navigate to first day:")
+            print("[WARNING] Failed to navigate to first day continue")
             return False
 
     # 3. chọn vào tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
@@ -502,7 +525,7 @@ class crawler_hoaddondientu(base_crawler):
             )
         )
         mua_vao_button.click()
-        print("- Finish click tab tra cứu hóa đơn mua vào")
+        print("[SUCCESS]- Finish click tab tra cứu hóa đơn mua vào")
         time.sleep(3)
 
         try:
@@ -517,16 +540,16 @@ class crawler_hoaddondientu(base_crawler):
             target_input_to = inputs[1]
 
             target_input_to.click()
-            print("- click thành công vào input")
+            print("[SUCCESS]- click thành công vào input")
 
             # Chỉ truyền số tháng cần lùi
             self.navigate_to_first_day_of_month(
                 driver, months_to_go_back=self.args.months_ago
             )
-            print("- Đã chọn thời gian tìm kiếm.")
+            print("[SUCCESS] - Đã chọn thời gian tìm kiếm.")
 
         except Exception as e:
-            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: Tra cứu hóa đơn điện tử mua vào ")
             self.send_slack_notification(
                 "[ERROR]Chương trình chạy thất bại", self.webhook_url_hddt
             )
@@ -537,7 +560,7 @@ class crawler_hoaddondientu(base_crawler):
             '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[3]/div[1]/button',
         )
         tim_kiem.click()
-        print("- Finish click tìm kiếm hóa đơn mua vào")
+        print("[SUCCESS]- Finish click tìm kiếm hóa đơn mua vào")
         time.sleep(2)
 
 
@@ -608,7 +631,7 @@ class crawler_hoaddondientu(base_crawler):
                             len(all_headers) :
                         ]  # Thêm cột mới vào cuối
                 else:
-                    print("[WARNING] Không tìm thấy tiêu đề bảng.")
+                    print("[DEBUG] Không tìm thấy tiêu đề bảng.")
 
                 # Lấy dữ liệu từ tbody
                 # Tìm tất cả phần tử có class 'ant-table-tbody'
@@ -619,7 +642,7 @@ class crawler_hoaddondientu(base_crawler):
                 if len(elements2) > 1:
                     tbody = elements2[1]
                 else:
-                    raise Exception("Không tìm thấy phần tử ant-table-body thứ hai.")
+                    raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-body thứ hai.")
 
                 # Lấy tất cả các hàng hiện tại
                 rowsbody = tbody.find_elements(By.XPATH, ".//tr")
@@ -654,7 +677,7 @@ class crawler_hoaddondientu(base_crawler):
 
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
-            print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
+            print(f"[SUCCESS]- Dữ liệu đã được lưu vào file: {unique_output_file}")
 
         except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
@@ -750,7 +773,7 @@ class crawler_hoaddondientu(base_crawler):
                 os.remove(screenshot_path)
 
         except Exception as e:
-            print(f"[ERROR] Lỗi khi chụp màn hình: {e}")
+            print(f"[ERROR] Lỗi khi chụp màn hình: hóa đơn")
 
 
 
@@ -765,7 +788,7 @@ class crawler_hoaddondientu(base_crawler):
             if len(elements2) > 1:
                 tbody = elements2[1]
             else:
-                raise Exception("Không tìm thấy phần tử ant-table-tbody thứ hai.")
+                raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-tbody thứ hai.")
 
             # Lấy tất cả các hàng hiện tại
             rowsbody = tbody.find_elements(By.XPATH, ".//tr")
@@ -793,7 +816,7 @@ class crawler_hoaddondientu(base_crawler):
                         '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[1]/div[2]/div/div[5]/button',
                     )
                     img_btn.click()
-                    print(f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
+                    print(f"[SUCCESS]- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
                     time.sleep(3)
 
                     # Chụp màn hình với viewport mới
@@ -807,12 +830,12 @@ class crawler_hoaddondientu(base_crawler):
                     time.sleep(2)  # Đợi modal đóng hoàn toàn
 
                 except ElementNotInteractableException as e:
-                    print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: {e}")
+                    print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: ")
                 except Exception as e:
-                    print(f"[ERROR] Lỗi khác xảy ra với hàng thứ {index + 1}: {e}")
+                    print(f"[ERROR] Lỗi khác xảy ra với hàng thứ {index + 1}: ")
 
         except Exception as e:
-            print(f"[ERROR] Lỗi chung: {e}")
+            print(f"[ERROR] Lỗi chung của website khi chụp ảnh hóa đơn failed")
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
@@ -829,7 +852,7 @@ class crawler_hoaddondientu(base_crawler):
             )
         )
         mua_vao_button.click()
-        print("- Finish click tab tra cứu hóa đơn bán ra")
+        print("[SUCCESS] - Finish click tab tra cứu hóa đơn bán ra")
         time.sleep(3)
 
         try:
@@ -844,16 +867,16 @@ class crawler_hoaddondientu(base_crawler):
             target_input_to = inputs[0]
 
             target_input_to.click()
-            print("- click thành công vào input")
+            print("[SUCCESS] - click thành công vào input")
 
             # Chỉ truyền số tháng cần lùi
             self.navigate_to_first_day_of_month(
                 driver, months_to_go_back=self.args.months_ago
             )
-            print("- Đã chọn thời gian tìm kiếm.")
+            print("[SUCCESS] - Đã chọn thời gian tìm kiếm.")
 
         except Exception as e:
-            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: {e}")
+            print(f"[ERROR] Gặp lỗi khi thao tác với thẻ input: Tra cứu hóa đơn điện tử bán ra")
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
@@ -865,7 +888,7 @@ class crawler_hoaddondientu(base_crawler):
         )
         tim_kiem.click()
 
-        print("- Finish click tìm kiếm hóa bán ra")
+        print("[SUCCESS] - Finish click tìm kiếm hóa bán ra")
         time.sleep(2)
 
     # 6. xuất dữ liệu ở trang ( - Tra cứu hóa đơn điện tử bán ra - ) ra file csv
@@ -919,18 +942,17 @@ class crawler_hoaddondientu(base_crawler):
                             len(all_headers) :
                         ]  # Thêm cột mới vào cuối
                 else:
-                    print("[WARNING] Không tìm thấy tiêu đề bảng.")
+                    print("[DEBUG] Không tìm thấy tiêu đề bảng.")
 
                 # Lấy dữ liệu từ tbody
                 # Tìm tất cả phần tử có class 'ant-table-tbody'
                 elements2 = driver.find_elements(By.CLASS_NAME, "ant-table-tbody")
-                # print(f"[DEBUG] Số phần tử với class='ant-table-body': {len(elements2)}")
 
                 # Chọn phần tử thứ hai (index 1)
                 if len(elements2) > 1:
                     tbody = elements2[0]
                 else:
-                    raise Exception("Không tìm thấy phần tử ant-table-body thứ hai.")
+                    raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-body thứ hai.")
 
                 # Lấy tất cả các hàng hiện tại
                 rowsbody = tbody.find_elements(By.XPATH, ".//tr")
@@ -965,7 +987,7 @@ class crawler_hoaddondientu(base_crawler):
 
             df = pd.DataFrame(all_rows, columns=all_headers)
             df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
-            print(f"- Dữ liệu đã được lưu vào file: {unique_output_file}")
+            print(f"[SUCCESS] - Dữ liệu đã được lưu vào file: {unique_output_file}")
         except Exception as e:
             print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
 
@@ -980,7 +1002,7 @@ class crawler_hoaddondientu(base_crawler):
             if len(elements2) > 0:
                 tbody = elements2[0]
             else:
-                raise Exception("Không tìm thấy phần tử ant-table-tbody.")
+                raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-tbody.")
 
             # Lấy tất cả các hàng hiện tại
             rowsbody = tbody.find_elements(By.XPATH, ".//tr")
@@ -1008,7 +1030,7 @@ class crawler_hoaddondientu(base_crawler):
                         '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[1]/div[3]/div[2]/div[1]/div[2]/div/div[5]/button',
                     )
                     img_btn.click()
-                    print(f"- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
+                    print(f"[SUCCESS] - Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
                     time.sleep(3)
 
                     # Chụp màn hình với viewport mới
@@ -1022,12 +1044,12 @@ class crawler_hoaddondientu(base_crawler):
                     time.sleep(2)  # Đợi modal đóng hoàn toàn
 
                 except ElementNotInteractableException as e:
-                    print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: {e}")
+                    print(f"[ERROR] Không thể click vào hàng thứ {index + 1}: ")
                 except Exception as e:
-                    print(f"[ERROR] Lỗi khác xảy ra với hàng thứ {index + 1}: {e}")
+                    print(f"[ERROR] Lỗi khác xảy ra với hàng thứ {index + 1}: ")
 
         except Exception as e:
-            print(f"[ERROR] Lỗi chung: {e}")
+            print(f"[ERROR] Lỗi chung của website khi chụp ảnh hóa đơn failed")
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
@@ -1062,11 +1084,11 @@ class crawler_hoaddondientu(base_crawler):
                             sql.Identifier(self.db_name)
                         )
                     )
-                    print(f"Database '{self.db_name}' created successfully.")
+                    print(f"[SUCCESS] Database '{self.db_name}' created successfully.")
                 else:
-                    print(f"Database '{self.db_name}' already exists.")
+                    print(f"[DEBUG] Database '{self.db_name}' already exists.")
         except Exception as e:
-            print(f"Error ensuring database exists: {e}")
+            print(f"[ERROR] Error ensuring database exists: {e}")
             raise
         finally:
             if connection:
@@ -1103,12 +1125,12 @@ class crawler_hoaddondientu(base_crawler):
             img_files = list(Path(".").glob(img_pattern))
 
             if not csv_files:
-                print(f"No CSV files found matching pattern: {csv_pattern}")
+                print(f"[DEBUG] No CSV files found matching pattern: {csv_pattern}")
                 return None, []
 
             # Get the latest CSV file
             latest_csv = max(csv_files, key=os.path.getctime)
-            print(f"Latest CSV file: {latest_csv}")
+            print(f"[DEBUG] Latest CSV file: {latest_csv}")
 
             # Get timestamp of the latest CSV file
             csv_timestamp = os.path.getctime(latest_csv)
@@ -1123,16 +1145,16 @@ class crawler_hoaddondientu(base_crawler):
 
             # Print the relevant images found
             if relevant_images:
-                print("Relevant images found:")
+                print("[DEBUG] Relevant images found:")
                 for img in relevant_images:
                     print(f"- {img}")
             else:
-                print("No relevant images found for the latest CSV.")
+                print("[DEBUG] No relevant images found for the latest CSV.")
 
             return str(latest_csv), [str(img) for img in relevant_images]
 
         except Exception as e:
-            print(f"Error getting latest files: {e}")
+            print(f"[ERROR] Error getting latest files: ")
             return None, []
 
     # ==================== Cấp quyền cho tệp trên Google Drive ==================== #
@@ -1151,7 +1173,7 @@ class crawler_hoaddondientu(base_crawler):
             )
 
     # ==================== Tạo thư mục hóa đơn trên Google Drive ==================== #
-    def create_invoice_directory_on_drive(self, service, company_id):
+    def create_invoice_directory_on_drive(self, service, company_id, company_name):
         """Tạo thư mục hóa đơn trên Google Drive và trả về ID của thư mục chính và thư mục con."""
         # Tìm thư mục chính 'HoaDon'
         query = "mimeType='application/vnd.google-apps.folder' and name='HoaDon'"
@@ -1172,7 +1194,7 @@ class crawler_hoaddondientu(base_crawler):
 
         # Tạo thư mục con với tên công ty và thời gian hiện tại
         current_time = datetime.now()
-        subfolder_name = f"{company_id}_{current_time.strftime('%d/%m/%Y_%H:%M:%S')}"
+        subfolder_name = f"{company_id}_{company_name}_{current_time.strftime('%d/%m/%Y_%H:%M:%S')}"
         subfolder_metadata = {
             "name": subfolder_name,
             "mimeType": "application/vnd.google-apps.folder",
@@ -1238,7 +1260,7 @@ class crawler_hoaddondientu(base_crawler):
 
     
     # Hàm lưu dữ liệu vào database
-    def save_to_database(self, data, image_paths, drive_image_paths, company_id, loai_hoa_don):
+    def save_to_database(self, data, image_paths, drive_image_paths, company_id, company_name, loai_hoa_don):
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -1258,8 +1280,8 @@ class crawler_hoaddondientu(base_crawler):
                         invoice_query = """
                             INSERT INTO data_hoadon (mau_so, ky_hieu, so_hoa_don, ngay_lap, mst_nguoi_mua, ten_nguoi_mua, mst_nguoi_ban, ten_nguoi_ban, 
                                                     tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
-                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, loai_hoa_don)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s)
+                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, company_name, loai_hoa_don)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
                             ON CONFLICT (company_id, so_hoa_don, loai_hoa_don) DO UPDATE
                             SET mau_so = EXCLUDED.mau_so,
                             ngay_lap = EXCLUDED.ngay_lap,
@@ -1301,6 +1323,7 @@ class crawler_hoaddondientu(base_crawler):
                             row.get("trang_thai", ""),
                             drive_image_path,
                             company_id,
+                            company_name,
                             loai_hoa_don
                         )
 
@@ -1311,12 +1334,12 @@ class crawler_hoaddondientu(base_crawler):
 
                         cur.execute(invoice_query, invoice_values)
 
-            print("Dữ liệu hóa đơn đã được lưu thành công.")
+            print("[SUCCESS] Dữ liệu hóa đơn đã được lưu thành công.")
         except Exception as e:
-            print(f"Lỗi xảy ra khi lưu dữ liệu vào database: {e}")
+            print(f"[ERROR] Lỗi xảy ra khi lưu dữ liệu vào database. ")
 
     # Quy trình database chính
-    def main_db_workflow(self, service, company_id, username, password):
+    def main_db_workflow(self, service, company_id, company_name, username, password):
         # Tạo bảng nếu chưa tồn tại
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -1325,7 +1348,7 @@ class crawler_hoaddondientu(base_crawler):
                 
         # Tạo thư mục trên Google Drive
         main_folder_id, subfolder_id = self.create_invoice_directory_on_drive(
-            service, company_id
+            service, company_id, company_name
         )
         
         for loai_hoa_don, csv_pattern, img_pattern in [
@@ -1334,7 +1357,7 @@ class crawler_hoaddondientu(base_crawler):
         ]:
             csv_file, images = self.get_latest_files_by_timestamp(csv_pattern, img_pattern)
             if csv_file:
-                print(f"Processing {loai_hoa_don} data from {csv_file}")
+                print(f"[DEBUG] Processing {loai_hoa_don} data from {csv_file}")
                 df1 = pd.read_csv(csv_file)
                 
                 # Đổi tên cột cho phù hợp với schema database
@@ -1354,7 +1377,7 @@ class crawler_hoaddondientu(base_crawler):
                     "Trạng tháihóa đơn": "trang_thai",
                 }
                 df1.rename(columns=column_mapping, inplace=True)
-                print("Đã đổi tên các cột trong file CSV:")
+                print("[DEBUG] Đã đổi tên các cột trong file CSV:")
                 # print(df1.head())
 
                 # Xử lý dữ liệu trong file CSV
@@ -1366,8 +1389,8 @@ class crawler_hoaddondientu(base_crawler):
                     thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_ban_ra')
                     df2.insert(thong_tin_index, 'mst_nguoi_mua', df2.pop('mst_nguoi_mua'))
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_mua', df2.pop('ten_nguoi_mua'))
-                    print("Đã xử lý dữ liệu cho hóa đơn bán ra:")
-                    print(df2[['thong_tin_hoa_don_ban_ra', 'mst_nguoi_mua', 'ten_nguoi_mua']].head())
+                    print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn bán ra:")
+                    # print(df2[['thong_tin_hoa_don_ban_ra', 'mst_nguoi_mua', 'ten_nguoi_mua']].head())
                 elif loai_hoa_don == "mua vào":
                     # Tách MST người bán và Tên người bán từ cột "Thông tin người bán"
                     df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao'].str.extract(r'MST người bán:\s*([\d\-]+)\s*\n\s*Tên người bán:\s*(.+)')
@@ -1375,21 +1398,21 @@ class crawler_hoaddondientu(base_crawler):
                     thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_mua_vao')
                     df2.insert(thong_tin_index, 'mst_nguoi_ban', df2.pop('mst_nguoi_ban'))
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_ban', df2.pop('ten_nguoi_ban'))
-                    print("Đã xử lý dữ liệu cho hóa đơn mua vào:")
-                    print(df2[['thong_tin_hoa_don_mua_vao', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
+                    print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn mua vào:")
+                    # print(df2[['thong_tin_hoa_don_mua_vao', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
 
                 # Lưu dữ liệu vào database
                 drive_image_paths = [
                     self.upload_image_to_drive(service, img, subfolder_id) for img in images if os.path.exists(img)
                 ]
 
-                self.save_to_database(df2, images, drive_image_paths, company_id, loai_hoa_don)
-                print(f"Processed {loai_hoa_don} data from {csv_file}")
+                self.save_to_database(df2, images, drive_image_paths, company_id, company_name, loai_hoa_don)
+                print(f"[DEBUG] Processed {loai_hoa_don} data from {csv_file}")
 
     # Hàm lấy dữ liệu từ bảng company_information
     def fetch_company_information(self):
         query = (
-            "SELECT company_id, hoadon_username, hoadon_password FROM company_information;"
+            "SELECT company_id, company_name, hoadon_username, hoadon_password FROM company_information;"
         )
         try:
             with psycopg2.connect(**self.db_config) as conn:
@@ -1406,7 +1429,7 @@ class crawler_hoaddondientu(base_crawler):
 
                     return filtered_rows
         except Exception as e:
-            print(f"Error fetching data from 'company_information': {e}")
+            print(f"[ERROR] Error fetching data from 'company_information': {e}")
             return []
 
     def clean_data(self, directory_path=".", file_extensions=(".csv", ".png")):
@@ -1483,7 +1506,7 @@ class crawler_hoaddondientu(base_crawler):
             current_month = datetime.now().replace(day=1)
             
             # Bắt đầu từ tháng trước theo tham số --months-ago
-            start_month = current_month - relativedelta(months=args.months_ago+1)
+            start_month = current_month - relativedelta(months=args.months_ago)
             
             # Tạo danh sách các tháng cần crawl
             months_to_crawl = [
@@ -1493,12 +1516,13 @@ class crawler_hoaddondientu(base_crawler):
 
 
             for idx, company_data in enumerate(company_data_list, start=1):
-                company_id, username, password = (
+                company_id, company_name, username, password = (
                     company_data["company_id"],
+                    company_data["company_name"],
                     company_data["hoadon_username"],
                     company_data["hoadon_password"],
                 )
-                print(f"Đang xử lý công ty thứ {idx}: {company_id}")
+                print(f"Đang xử lý công ty thứ {idx}: {company_id} - {company_name}")
 
                 success_months = []
                 failed_months = []
@@ -1508,13 +1532,18 @@ class crawler_hoaddondientu(base_crawler):
                 driver.switch_to.window(new_tab)
 
                 try:
-                    self.login_to_hoadondientu(driver, username, password, company_id)
+                    self.login_to_hoadondientu(driver, username, password, company_id, company_name)
                     self.crawl_img(driver)
                     self.enter_verification_code(driver, captcha_image_path)
-                    self.submit_form(driver, captcha_image_path)
+                    # self.submit_form(driver, captcha_image_path)
+                    
+                    try:
+                        self.submit_form(driver, captcha_image_path)
+                    except Exception as e:
+                        continue  # Bỏ qua công ty này và thử với công ty tiếp theo
 
                     for i, month in enumerate(months_to_crawl, start=1):
-                        print(f"Đang cào tháng {month} ({i}/{args.crawl_months})")
+                        print(f"[DEBUG] Đang cào tháng {month} ({i}/{args.crawl_months})")
                         try:
                             self.navigate_to_first_day_of_month(driver, month)
                             self.crawl_hoa_don_mua_vao(driver)
@@ -1523,11 +1552,11 @@ class crawler_hoaddondientu(base_crawler):
                             self.crawl_hoa_don_ban_ra(driver)
                             self.extract_table_ban_ra_to_csv(driver, output_file_ra)
                             self.extract_img_hoa_don_ban_ra(driver)
-                            self.main_db_workflow(service, company_id, username, password)
+                            self.main_db_workflow(service, company_id, company_name, username, password)
                             success_months.append(month)
                         except Exception as e:
                             print(
-                                f"[ERROR] Thất bại khi xử lý tháng {month} cho công ty với id {company_id}: {e}"
+                                f"[ERROR] Thất bại khi xử lý tháng {month} cho công ty {company_id} - {company_name}: "
                             )
                             failed_months.append(month)
                             continue
@@ -1535,7 +1564,7 @@ class crawler_hoaddondientu(base_crawler):
                     company_results[company_id] = (success_months, failed_months)
 
                 except Exception as e:
-                    print(f"Lỗi khi xử lý công ty {company_id}: {e}")
+                    print(f"[ERROR] Lỗi khi xử lý công ty {company_id} - {company_name}: ")
                     company_results[company_id] = ([], months_to_crawl)
                 finally:
                     driver.close()
@@ -1543,7 +1572,7 @@ class crawler_hoaddondientu(base_crawler):
                         driver.switch_to.window(driver.window_handles[0])
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"[ERROR] An error occurred: {e}")
         finally:
             if not any(success for success, fail in company_results.values()):
                 company_results = {
@@ -1599,3 +1628,4 @@ class crawler_hoaddondientu(base_crawler):
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")
+            # New

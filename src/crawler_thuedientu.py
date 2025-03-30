@@ -56,16 +56,16 @@ class crawler_thuedientu(base_crawler):
     # task 1 Đăng nhập vào website https://thuedientu.gdt.gov.vn/etaxnnt/Request
 
     # 1.1 Nhập username và password vào trang web 'thuedientu'
-    def login_to_thuedientu(self, driver, username, password, company_id):
+    def login_to_thuedientu(self, driver, username, password, company_id, company_name):
         """Đăng nhập vào trang web 'thuedientu'."""
         url = "https://thuedientu.gdt.gov.vn/etaxnnt/Request"
         driver.get(url)
         print("- Finish initializing a driver")
         time.sleep(2)
 
-        print(f"- Đang đăng nhập cho công ty với id: {company_id}")
+        print(f"- Đang đăng nhập cho công ty: {company_id} - {company_name}")
         self.send_slack_notification(
-            f"[INFO] Chương trình đang login vào công ty với id: {company_id}", self.webhook_url_thuedt
+            f"[INFO] Chương trình đang login vào công ty: {company_id} - {company_name}", self.webhook_url_thuedt
         )
 
         # Nhấn nút Doanh Nghiệp
@@ -82,13 +82,13 @@ class crawler_thuedientu(base_crawler):
         )
         login_button.click()
         time.sleep(3)
-        print("- Finish Task 1: Login to thuedientu")
+        print("- Finish Task 2: Login to thuedientu")
 
         # click vào Thue dien tu
         btn_tk_thue = driver.find_element(By.XPATH, '//*[@id="icon-1"]')
         btn_tk_thue.click()
         time.sleep(3)
-        print("- Finish Task 1: Login to icon")
+        print("- Finish Task 3: Login to icon")
 
         # Nhập tên đăng nhập
         username_field = driver.find_element(By.ID, "_userName")
@@ -182,7 +182,7 @@ class crawler_thuedientu(base_crawler):
             # Chỉ trả về kết quả
             return captcha_text
         except Exception as e:
-            print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: {e}")
+            print(f"[ERROR] Lỗi khi xử lý ảnh CAPTCHA: ")
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
@@ -212,7 +212,7 @@ class crawler_thuedientu(base_crawler):
 
             return True
         except Exception as e:
-            print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: {e}")
+            print(f"[ERROR] Lỗi khi nhập mã CAPTCHA: ")
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
             )
@@ -243,55 +243,52 @@ class crawler_thuedientu(base_crawler):
         """Nhấn nút để hoàn tất đăng nhập."""
         try:
             attempt = 0  # Biến theo dõi số lần thử đăng nhập
-            while True:
+            max_attempts = 3  # Giới hạn số lần thử tối đa
+
+            while attempt < max_attempts:
                 attempt += 1  # Tăng số lần thử đăng nhập
+                print(f"[INFO] Thử đăng nhập lần {attempt}")
+
                 # Nhấn nút để gửi biểu mẫu
                 submit_button = driver.find_element(By.XPATH, '//*[@id="dangnhap"]')
                 submit_button.click()
-                print(f"- Finish submitting the form (attempt {attempt})")
                 self.send_slack_notification(
-                    f"[INFO] Chương trình đang thực hiên login lần {attempt}",
+                    f"[INFO] Chương trình đang thực hiện login lần {attempt}",
                     self.webhook_url_thuedt,
                 )
 
                 # Kiểm tra nếu có thông báo lỗi CAPTCHA
                 try:
-                    # Chờ thông báo lỗi CAPTCHA
                     error_message = WebDriverWait(driver, 15).until(
                         EC.presence_of_element_located(
-                            (
-                                By.XPATH,
-                                '//*[contains(text(), "Mã xác thực không chính xác")]',
-                            )
+                            (By.XPATH, '//*[contains(text(), "Mã xác thực không chính xác")]')
                         )
                     )
                     if error_message:
-                        print("[ERROR] Mã xác nhận nhập sai. Đang thử lại...")
+                        print(f"[ERROR] Mã xác thực không chính xác (Lần {attempt}/{max_attempts})")
                         self.send_slack_notification(
-                            "[ERROR] Login thất bại, đang thử lại", self.webhook_url_thuedt
+                            "[ERROR] Login thất bại, đang thử lại...",
+                            self.webhook_url_thuedt,
                         )
-                        # Nhập lại các trường thông tin
+                        
+                        if attempt >= max_attempts:
+                            print("[ERROR] Quá số lần thử, bỏ qua công ty này.")
+                            raise Exception("Quá số lần thử đăng nhập, bỏ qua công ty.")
+
+                        # Nhập lại username, password và CAPTCHA mới
                         self.retry_user_pass_doituong(driver, username, password)
-
-                        # Lưu và giải mã CAPTCHA mới
                         self.save_captcha_image(driver)
-
-                        # enter_verification_code(driver) # thủ công
-                        self.enter_verification_code(
-                            driver, captcha_image_path
-                        )  # tự đông nhập mã captcha
-                        continue  # Thử lại
+                        self.enter_verification_code(driver, captcha_image_path)
+                        continue  # Thử lại lần tiếp theo
 
                 except TimeoutException:
-                    print("[DEBUG] Mã xác nhận được xác thực thành công")
+                    print("[DEBUG] Mã xác nhận được xác thực thành công.")
 
                 # Kiểm tra nếu đăng nhập thành công
                 try:
-                    # Chờ thẻ div có id "ddtabs1" xuất hiện
                     WebDriverWait(driver, 15).until(
                         EC.presence_of_element_located((By.ID, "ddtabs1"))
                     )
-                    # Tìm trong ul có id "tabmenu" và kiểm tra thẻ span với text
                     tra_cuu_element = driver.find_element(
                         By.XPATH,
                         '//div[@id="ddtabs1"]//ul[@id="tabmenu"]//li//a//span[text()="Tra cứu"]',
@@ -302,20 +299,22 @@ class crawler_thuedientu(base_crawler):
                             "[SUCCESS] Đăng nhập thành công! Đã vào trang chính.",
                             self.webhook_url_thuedt,
                         )
-                        return  # Thoát khỏi hàm khi thành công
-                except TimeoutException:
-                    print(
-                        "[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công. Thử lại..."
-                    )
-                    continue  # Thử lại nếu không tìm thấy dấu hiệu thành công
+                        return  # Đăng nhập thành công, thoát khỏi hàm
 
-                # Nếu không vào được vòng lặp, thoát ra
-                break
+                except TimeoutException:
+                    print(f"[DEBUG] Không tìm thấy dấu hiệu đăng nhập thành công (Lần {attempt}/{max_attempts})")
+
+            # Nếu đến đây nghĩa là sau `max_attempts` lần vẫn chưa đăng nhập được
+            print("[ERROR] Đăng nhập thất bại sau 3 lần thử, bỏ qua công ty này.")
+            raise Exception("Đăng nhập thất bại sau 3 lần thử.")
+
         except Exception as e:
-            print(f"Đã xảy ra lỗi khi nhấn nút submit: {e}")
+            print(f"Đã xảy ra lỗi khi nhấn nút submit khi login: {e}")
             self.send_slack_notification(
-                "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
+                f"[ERROR] Chương trình chạy thất bại: ", self.webhook_url_thuedt
             )
+            raise  # Ném lỗi để `main_logic()` xử lý tiếp
+
 
     # Task 2 crawl dữ liệu ở tab Truy vấn và xuất file xlsx lưu vào máy
     def get_unique_filename(self, base_filename):
@@ -423,15 +422,35 @@ class crawler_thuedientu(base_crawler):
         except NoSuchElementException:
             print("- Không tìm thấy iframe, tiếp tục thao tác trên trang chính.")
 
-        # Đợi phần tử hiển thị và click bằng JavaScript
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'input[value="Truy vấn"]'))
-        )
-        driver.execute_script(
-            "document.querySelector('.button_vuong.awesome').click();"
-        )
 
-        print("- Finish click Truy van")
+        attempt = 0  # Số lần thử
+        max_attempts = 3  # Giới hạn số lần thử
+        while attempt < max_attempts:
+            attempt += 1
+            print(f"[INFO] Đang thử click truy vấn lần {attempt}")
+        # Đợi phần tử hiển thị và click bằng JavaScript
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'input[value="Truy vấn"]'))
+            )
+            driver.execute_script(
+                "document.querySelector('.button_vuong.awesome').click();"
+            )
+
+            print("- Finish click Truy van")
+            time.sleep(5)  # Đợi phản hồi từ trang web
+            page_source = driver.page_source
+            if "Không tìm thấy thông tin nghĩa vụ thuế" in page_source:
+                print("[WARNING] Không tìm thấy thông tin nghĩa vụ thuế. Đang thử lại...")
+                if attempt == max_attempts:
+                    print("[ERROR] Đã thử 3 lần nhưng không có dữ liệu. Dừng lại.")
+                    self.send_slack_notification("[ERROR] Không tìm thấy dữ liệu sau 3 lần thử", self.webhook_url_thuedt)
+                    return pd.DataFrame()  # Trả về DataFrame rỗng
+                else:
+                    time.sleep(3)  # Chờ trước khi thử lại
+                    continue
+            else:
+                print("[INFO] Dữ liệu đã sẵn sàng, tiếp tục xử lý...")
+                break  # Thoát khỏi vòng lặp nếu không có thông báo lỗi
 
         # Quay lại trang chính nếu đã vào iframe
         driver.switch_to.default_content()
@@ -444,10 +463,6 @@ class crawler_thuedientu(base_crawler):
         # Sử dụng `driver.page_source` mà không cần `.text`
         page_source = driver.page_source
 
-        # In ra một phần mã nguồn để kiểm tra
-        print("Mã nguồn HTML của trang sau khi truy vấn:")
-        print(page_source[:1000])  # In ra 1000 ký tự đầu tiên của mã nguồn
-
         # Phân tích HTML bằng BeautifulSoup
         soup = BeautifulSoup(page_source, "lxml")
 
@@ -456,7 +471,7 @@ class crawler_thuedientu(base_crawler):
 
         # Kiểm tra nếu không tìm thấy bảng
         if table is None:
-            print("Không tìm thấy bảng với id 'data_content_onday'.")
+            print("Không tìm thấy bảng với id 'data_content_onday'. nên chuyển vào iframe")
             # Kiểm tra nếu bảng có thể nằm trong một iframe khác
             iframe_elements = driver.find_elements(By.TAG_NAME, "iframe")
             print(f"Found {len(iframe_elements)} iframe(s) on the page.")
@@ -508,7 +523,7 @@ class crawler_thuedientu(base_crawler):
             df = pd.DataFrame(elements, columns=world_table_titles)
 
         else:
-            print("Không tìm thấy bảng với id 'data_content_onday'.")
+            print("Không tìm thấy bảng với id 'data_content_onday' trên website")
             df = pd.DataFrame()  # Trả về DataFrame rỗng nếu không tìm thấy bảng
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_thuedt
@@ -516,7 +531,7 @@ class crawler_thuedientu(base_crawler):
 
         return df
 
-    def upload_excel_to_postgres(self, db_config, company_id):
+    def upload_excel_to_postgres(self, db_config, company_id, company_name):
         try:
             # Tìm tất cả các file Excel với pattern data_thue_dien_tu*.xlsx
             list_of_files = glob.glob("./data_thue_dien_tu*.xlsx")
@@ -563,6 +578,7 @@ class crawler_thuedientu(base_crawler):
             # Thêm cột mới
             data["created_at"] = pd.to_datetime("now")
             data["company_id"] = company_id
+            data["company_name"] = company_name
 
             # Tạo bảng data_thuedt nếu chưa tồn tại
             with engine.begin() as conn:
@@ -589,6 +605,7 @@ class crawler_thuedientu(base_crawler):
                         tinh_chat_khoan_nop VARCHAR,
                         created_at TIMESTAMP,
                         company_id VARCHAR NOT NULL,
+                        company_name VARCHAR NOT NULL,
                         UNIQUE (id_khoan_phai_nop, company_id)
                     );
                 """)
@@ -623,7 +640,7 @@ class crawler_thuedientu(base_crawler):
                             ky_thue, ngay_quyet_dinh, tieu_muc, so_tien, 
                             loai_tien, ma_chuong, dbhc, han_nop_ngay, 
                             so_tien_da_nop, trang_thai, tinh_chat_khoan_nop, 
-                            created_at, company_id
+                            created_at, company_id, company_name
                         )
                         VALUES (
                             :thu_tu_thanh_toan, :co_quan_thu, :loai_nghia_vu, 
@@ -631,7 +648,7 @@ class crawler_thuedientu(base_crawler):
                             :ky_thue, :ngay_quyet_dinh, :tieu_muc, :so_tien, 
                             :loai_tien, :ma_chuong, :dbhc, :han_nop_ngay, 
                             :so_tien_da_nop, :trang_thai, :tinh_chat_khoan_nop, 
-                            :created_at, :company_id
+                            :created_at, :company_id, :company_name
                         )
                         ON CONFLICT (id_khoan_phai_nop, company_id) 
                         DO UPDATE SET 
@@ -665,7 +682,7 @@ class crawler_thuedientu(base_crawler):
     # Hàm lấy dữ liệu từ bảng company_information
     def fetch_company_information(self, engine):
         query = text(
-            "SELECT company_id, thue_username, thue_password FROM company_information;"
+            "SELECT company_id, company_name, thue_username, thue_password FROM company_information;"
         )
         try:
             with engine.connect() as conn:
@@ -675,17 +692,19 @@ class crawler_thuedientu(base_crawler):
                 # Lọc các công ty không có thue_username hoặc thue_password
                 filtered_rows = [
                     {
-                        "company_id": row[0],
-                        "thue_username": row[1],
-                        "thue_password": row[2],
+                        "company_id": row[0], 
+                        "company_name": row[1], 
+                        "thue_username": row[2],
+                        "thue_password": row[3], 
                     }
                     for row in rows
-                    if row[1] and row[2]
+                    if row[2] and row[3]  # Chỉ lọc khi thue_username và thue_password không rỗng
                 ]
+
 
                 return filtered_rows
         except Exception as e:
-            print(f"Error fetching data from 'company_information': {e}")
+            print(f"Error fetching data from 'company_information': ")
             return []
 
     def clean_data(self, directory_path=".", file_extensions=(".xlsx")):
@@ -754,8 +773,9 @@ class crawler_thuedientu(base_crawler):
 
         # Xử lý từng công ty
         for idx, company_data in enumerate(company_data_list, start=1):
-            company_id, username, password = (
+            company_id, company_name, username, password = (
                 company_data["company_id"],
+                company_data["company_name"],
                 company_data["thue_username"],
                 company_data["thue_password"],
             )
@@ -768,7 +788,7 @@ class crawler_thuedientu(base_crawler):
                 driver.quit()
                 return
 
-            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies} với id: {company_id}")
+            print(f"\nĐang xử lý công ty thứ {idx}/{total_companies} với id: {company_id} và tên công ty là: {company_name}")
 
             try:
                 # Mở tab mới
@@ -777,10 +797,19 @@ class crawler_thuedientu(base_crawler):
                 driver.switch_to.window(new_tab)
 
                 # Đăng nhập
-                self.login_to_thuedientu(driver, username, password, company_id)
+                self.login_to_thuedientu(driver, username, password, company_id, company_name)
                 self.save_captcha_image(driver)
                 self.enter_verification_code(driver, captcha_image_path)
-                self.submit_form(driver, username, password, captcha_image_path)
+                # self.submit_form(driver, username, password, captcha_image_path)
+                
+                
+                # Gửi form đăng nhập
+                try:
+                    self.submit_form(driver, username, password, captcha_image_path)
+                except Exception as e:
+                    failed_companies.append(company_id)
+                    continue  # Bỏ qua công ty này và thử với công ty tiếp theo
+                
 
                 # Crawling dữ liệu
                 df = self.crawl(driver)
@@ -792,7 +821,7 @@ class crawler_thuedientu(base_crawler):
                     self.adjust_column_width(unique_file_name)
 
                     # Tải dữ liệu lên cơ sở dữ liệu
-                    self.upload_excel_to_postgres(db_config, company_id)
+                    self.upload_excel_to_postgres(db_config, company_id, company_name)
                     successful_companies.append(
                         company_id
                     )  # Thêm vào danh sách thành công
@@ -800,11 +829,11 @@ class crawler_thuedientu(base_crawler):
                     failed_companies.append(company_id)  # Thêm vào danh sách thất bại
 
             except Exception as e:
-                print(f"Đã xảy ra lỗi: {e}")
+                print(f"Đã xảy ra lỗi website")
                 failed_companies.append(company_id)  # Thêm vào danh sách thất bại
-                # self.send_slack_notification(
-                #     f"Lỗi khi xử lý công ty {company_id}: {e}", self.webhook_url_thuedt
-                # )
+                self.send_slack_notification(
+                    f"Lỗi khi xử lý công ty có id: {company_id} và tên: {company_name}: {e}", self.webhook_url_thuedt
+                )
 
         # Đóng tất cả các tab sau khi hoàn tất
         driver.quit()  # Đóng WebDriver sau khi xử lý tất cả công ty
