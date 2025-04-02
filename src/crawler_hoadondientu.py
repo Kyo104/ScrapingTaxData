@@ -102,6 +102,7 @@ class crawler_hoaddondientu(base_crawler):
         )
         parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
         parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
+        parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
 
         self.args = parser.parse_args()
 
@@ -1497,6 +1498,14 @@ class crawler_hoaddondientu(base_crawler):
                 print("Không có công ty nào để xử lý. Kết thúc chương trình.")
                 driver.quit()
                 return
+            elif args.company and args.company != "None":
+                for company_data in company_data_list:
+                    if company_data["company_name"] != args.company:
+                        company_data_list.remove(company_data)
+                if not company_data_list:
+                    print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
+                    self.driver.quit()
+                    return
 
             total_companies = len(company_data_list)
             print(f"Tổng số công ty cần xử lý: {total_companies}")

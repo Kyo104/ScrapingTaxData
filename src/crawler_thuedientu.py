@@ -29,7 +29,7 @@ class crawler_thuedientu(base_crawler):
         super().__init__()
 
     def parse_arguments(self):
-        parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
+        self.parser = argparse.ArgumentParser(description='Thuế Điện Tử Data Crawler')
         
         current_date = datetime.now()
         self.parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
@@ -51,7 +51,8 @@ class crawler_thuedientu(base_crawler):
             required=False,
             help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
         )
-        return parser.parse_args()
+        self.parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
+        return self.parser.parse_args()
 
     # task 1 Đăng nhập vào website https://thuedientu.gdt.gov.vn/etaxnnt/Request
 
@@ -741,6 +742,7 @@ class crawler_thuedientu(base_crawler):
         """Main function to run the crawler with parsed arguments."""
         print("[INFO] Main logic: Workflow ThueDienTu.")
 
+        args = self.parse_arguments()
         # Initialize database configuration
         db_config = {
             "host": self.db_host,
@@ -759,7 +761,14 @@ class crawler_thuedientu(base_crawler):
         if not company_data_list:
             print("Không có công ty nào để xử lý. Kết thúc chương trình.")
             return
-
+        elif args.company and args.company != "None":
+            for company_data in company_data_list:
+                if company_data["company_name"] != args.company:
+                    company_data_list.remove(company_data)
+            if not company_data_list:
+                print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
+                self.driver.quit()
+                return
         total_companies = len(company_data_list)
         print(f"\nTổng số công ty cần xử lý: {total_companies}")
 

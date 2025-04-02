@@ -59,6 +59,7 @@ class crawler_baohiemxahoi(base_crawler):
             required=False,
             help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
         )
+        self.parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
         return self.parser.parse_args()
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
@@ -702,7 +703,8 @@ class crawler_baohiemxahoi(base_crawler):
     
 
     def main_logic(self):
-        print('=============')
+        """Chạy chương trình chính"""
+        print("[INFO] Main logic: Workflow BaoHiemXaHoi.")
         args = self.parse_arguments()
         captcha_image_path = "captcha_image.png"
 
@@ -717,7 +719,14 @@ class crawler_baohiemxahoi(base_crawler):
             print("[DEBUG] Không có công ty nào để xử lý. Kết thúc chương trình.")
             self.driver.quit()
             return
-
+        elif args.company and args.company != "None":
+            for company_data in companies:
+                if company_data["company_name"] != args.company:
+                    companies.remove(company_data)
+            if not companies:
+                print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
+                self.driver.quit()
+                return
         total_companies = len(companies)
         print(f"[DEBUG] Tổng số công ty cần xử lý: {total_companies}")
 
