@@ -21,6 +21,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl import load_workbook
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine, text
+from datetime import datetime
 
 
 class crawler_thuedientu(base_crawler):
@@ -762,9 +763,7 @@ class crawler_thuedientu(base_crawler):
             print("Không có công ty nào để xử lý. Kết thúc chương trình.")
             return
         elif args.company and args.company != "None":
-            for company_data in company_data_list:
-                if company_data["company_name"] != args.company:
-                    company_data_list.remove(company_data)
+            company_data_list = [company_data for company_data in company_data_list if company_data["company_name"] == args.company]
             if not company_data_list:
                 print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
                 self.driver.quit()

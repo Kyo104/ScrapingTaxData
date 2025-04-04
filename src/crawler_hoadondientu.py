@@ -1499,9 +1499,7 @@ class crawler_hoaddondientu(base_crawler):
                 driver.quit()
                 return
             elif args.company and args.company != "None":
-                for company_data in company_data_list:
-                    if company_data["company_name"] != args.company:
-                        company_data_list.remove(company_data)
+                company_data_list = [company_data for company_data in company_data_list if company_data["company_name"] == args.company]
                 if not company_data_list:
                     print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
                     self.driver.quit()
@@ -1510,7 +1508,6 @@ class crawler_hoaddondientu(base_crawler):
             total_companies = len(company_data_list)
             print(f"Tổng số công ty cần xử lý: {total_companies}")
 
-            
             # Lấy ngày đầu tháng hiện tại
             current_month = datetime.now().replace(day=1)
             

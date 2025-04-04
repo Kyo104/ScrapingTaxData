@@ -720,9 +720,7 @@ class crawler_baohiemxahoi(base_crawler):
             self.driver.quit()
             return
         elif args.company and args.company != "None":
-            for company_data in companies:
-                if company_data["company_name"] != args.company:
-                    companies.remove(company_data)
+            companies = [company_data for company_data in companies if company_data["company_name"] == args.company]
             if not companies:
                 print(f"[DEBUG] Không có công ty nào với tên '{args.company}'. Kết thúc chương trình.")
                 self.driver.quit()
@@ -904,4 +902,3 @@ class crawler_baohiemxahoi(base_crawler):
 
         self.driver.quit()
         # New
-        
