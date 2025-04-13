@@ -380,9 +380,11 @@ class crawler_baohiemxahoi(base_crawler):
         Lấy dữ liệu từ tab mới, kiểm tra và tải file PDF nếu URL là blob.
         """
         try:
+            time.sleep(10)
             # Lấy danh sách các tab hiện tại
             current_tabs = self.driver.window_handles
-
+            
+            time.sleep(10)
             # Chuyển sang tab mới nhất
             self.driver.switch_to.window(current_tabs[-1])
             print("[DEBUG] Đã chuyển sang tab mới.")
@@ -490,7 +492,7 @@ class crawler_baohiemxahoi(base_crawler):
     # 2. Chọn vào mục Tra cứu Hồ sơ >> Tra cứu C12 >> Tra cứu để crawl data về
     def crawl(self, company_id, month, year):
         try:
-            wait = WebDriverWait(self.driver, 10)  # Thêm WebDriverWait
+            wait = WebDriverWait(self.driver, 30)  # Thêm WebDriverWait
             
             # Kiểm tra và Nhấn nút tra cứu Hồ sơ nếu có
             try:
@@ -525,7 +527,7 @@ class crawler_baohiemxahoi(base_crawler):
             du_lieu_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "mat-raised-button")))
             du_lieu_button.click()
             print("[SUCCESS] - Finish click nút Tra cứu đễ xem dữ liệu")
-            time.sleep(15)
+            time.sleep(30)
 
             # Gọi đến hàm lưu dữ liệu về máy
             save_path = "BangDuLieuTheoThang.pdf"
@@ -534,7 +536,7 @@ class crawler_baohiemxahoi(base_crawler):
                 output_csv_path = f"{company_id}_{month}_{year}_data_bhxh.csv"
                 self.extract_specific_rows(unique_pdf_path, output_csv_path, company_id, month, year)
             else:
-                print(f"[WARNING] Không tìm thấy dữ liệu cho tháng {month}. Bỏ qua tháng này.")
+                print(f"[WARNING] Không tìm thấy dữ liệu cho tháng {month}")
             return True
         except Exception as e:
             print(f"[ERROR] Lỗi khi crawl dữ liệu tháng {month}: ")
@@ -799,10 +801,10 @@ class crawler_baohiemxahoi(base_crawler):
                                 company_success += 1
                                 success_flag = True  # Đánh dấu thành công
                             else:
-                                print(f"[WARNING] Tháng {month} của công ty với id {company_id} không có dữ liệu. Thực hiện retry 2 lần...")
+                                print(f"[WARNING] Tháng {month} của công ty với id {company_id} không có dữ liệu. Thực hiện retry 3 lần...")
                                 data_retries = 0
                                 data_success = False
-                                while data_retries < 2 and not data_success:
+                                while data_retries < 3 and not data_success:
                                     data_retries += 1
                                     print(f"[INFO] Retry lần {data_retries} cho tháng {month}...")
                                     try:
@@ -831,7 +833,7 @@ class crawler_baohiemxahoi(base_crawler):
                                     success_flag = True
                                 else:
                                     company_failure += 1
-                                    print(f"[FAILED] Tháng {month} không có dữ liệu sau 2 lần retry.")
+                                    print(f"[FAILED] Tháng {month} không có dữ liệu sau 3 lần retry.")
                                 break  # Thoát luôn nếu không có dữ liệu
 
                             # Đóng tab hiện tại sau khi xử lý thành công

@@ -53,7 +53,7 @@ class crawler_hoaddondientu(base_crawler):
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         company_id VARCHAR(255),
         company_name VARCHAR(255),
-        loai_hoa_don VARCHAR(10), -- Thêm cột loại hóa đơn
+        loai_hoa_don VARCHAR(100), -- Thêm cột loại hóa đơn
         UNIQUE (company_id, so_hoa_don, loai_hoa_don) 
     );
     """
@@ -554,6 +554,69 @@ class crawler_hoaddondientu(base_crawler):
             self.send_slack_notification(
                 "[ERROR]Chương trình chạy thất bại", self.webhook_url_hddt
             )
+        # Click vào Kết quả kiểm tra: (Đã cấp mã hóa đơn)
+        ket_qua_kiem_tra_1 = driver.find_element(
+            By.XPATH, '/html/body/div[1]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[1]/div[5]/div/div[2]/div/div/div/span/div/div/div',
+        )
+        ket_qua_kiem_tra_1.click()
+        print("[SUCCESS]- Finish click vào dropdown ket_qua_kiem_tra_1")
+        time.sleep(2)
+        
+        # # Click vào item "Đã cấp mã hóa đơn"
+        # item_to_select = driver.find_element(
+        #     By.XPATH, '//div[contains(text(), "Đã cấp mã hóa đơn")]'
+        # )
+        # item_to_select.click()
+        # print("[SUCCESS] - Đã chọn 'Đã cấp mã hóa đơn'")
+        # time.sleep(2)
+        
+        # Đợi dropdown thực tế render ra và chứa option mong muốn
+        wait = WebDriverWait(driver, 10)
+        option = wait.until(EC.element_to_be_clickable((
+            By.XPATH,
+            '//div[contains(@class, "ant-select-dropdown") and contains(@class, "ant-select-dropdown--single")]//li[contains(text(), "Đã cấp mã hóa đơn")]'
+        )))
+        option.click()
+        print("[SUCCESS] - Đã chọn 'Đã cấp mã hóa đơn'")
+        
+        
+        # Chọn nút Tìm kiếm
+        tim_kiem = driver.find_element(
+            By.XPATH,
+            '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[3]/div[1]/button',
+        )
+        tim_kiem.click()
+        print("[SUCCESS]- Finish click tìm kiếm hóa đơn mua vào")
+        time.sleep(2)
+        
+    # 3.1 chọn vào filter (Cục thuế đã nhận không mã) ở tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
+    def crawl_hoa_don_mua_vao_filter(self, driver):
+        
+        # Click vào Kết quả kiểm tra: (Cục Thuế đã nhận không mã)
+        ket_qua_kiem_tra_2 = driver.find_element(
+            By.XPATH, '/html/body/div[1]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[1]/div/div/form/div[1]/div[5]/div/div[2]/div/div/div/span/div/div/div',
+        )
+        ket_qua_kiem_tra_2.click()
+        print("[SUCCESS]- Finish click vào dropdown ket_qua_kiem_tra_2")
+        time.sleep(2)
+        
+        # Đợi dropdown thực tế render ra và chứa option mong muốn
+        wait = WebDriverWait(driver, 10)
+        option = wait.until(EC.element_to_be_clickable((
+            By.XPATH,
+            '//div[contains(@class, "ant-select-dropdown") and contains(@class, "ant-select-dropdown--single")]//li[contains(text(), "Cục Thuế đã nhận không mã")]'
+        )))
+        option.click()
+        print("[SUCCESS] - Đã chọn 'Cục Thuế đã nhận không mã'")
+        
+        # wait = WebDriverWait(driver, 3)
+        # option = wait.until(EC.element_to_be_clickable(
+        #     (By.XPATH, '//div[@class="ant-select-selection-selected-value" and @title="Cục Thuế đã nhận không mã"]')
+        # ))
+        # option.click()
+        # print("[SUCCESS] - Đã click vào thẻ có nội dung 'Cục Thuế đã nhận không mã'")
+        # time.sleep(2)
+        
 
         # Chọn nút Tìm kiếm
         tim_kiem = driver.find_element(
@@ -588,6 +651,111 @@ class crawler_hoaddondientu(base_crawler):
         try:
             # Tạo tên file duy nhất nếu cần
             unique_output_file = self.get_unique_filename(output_file)
+            # Chờ bảng hiển thị
+            table1 = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(
+                    (
+                        By.XPATH,
+                        '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[2]/div[3]/div[1]/div[2]/div/div/div/div/div/div[1]/table',
+                    )
+                )
+            )
+            # Tìm thanh cuộn ngang
+            scrollable_div = driver.find_element(
+                By.XPATH,
+                "/html/body/div/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[2]/div[3]/div[1]/div[2]/div/div/div/div/div/div[2]",
+            )
+
+            # Lấy chiều rộng cuộn tối đa
+            max_scroll_width = driver.execute_script(
+                "return arguments[0].scrollWidth;", scrollable_div
+            )
+            current_scroll_position = 0
+            scroll_step = 500  # Số pixel cuộn ngang mỗi lần
+
+            # Khởi tạo lưu trữ dữ liệu
+            all_headers = []
+            all_rows = []
+
+            while current_scroll_position < max_scroll_width:
+                # Lấy HTML hiện tại của bảng có thead class 'ant-table-thead'
+                table_html = table1.get_attribute("outerHTML")
+                soup = BeautifulSoup(table_html, "html.parser")
+
+                # Lấy tiêu đề nếu tồn tại
+                header_row = soup.find("thead")
+                if header_row:
+                    header_columns = header_row.find_all("th")
+                    headers = [header.text.strip() for header in header_columns]
+                    # Chỉ thêm các tiêu đề mới
+                    if not all_headers:
+                        all_headers = headers
+                    elif len(headers) > len(all_headers):
+                        all_headers += headers[
+                            len(all_headers) :
+                        ]  # Thêm cột mới vào cuối
+                else:
+                    print("[DEBUG] Không tìm thấy tiêu đề bảng.")
+
+                # Lấy dữ liệu từ tbody
+                # Tìm tất cả phần tử có class 'ant-table-tbody'
+                elements2 = driver.find_elements(By.CLASS_NAME, "ant-table-tbody")
+                # print(f"[DEBUG] Số phần tử với class='ant-table-body': {len(elements2)}")
+
+                # Chọn phần tử thứ hai (index 1)
+                if len(elements2) > 1:
+                    tbody = elements2[1]
+                else:
+                    raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-body thứ hai.")
+
+                # Lấy tất cả các hàng hiện tại
+                rowsbody = tbody.find_elements(By.XPATH, ".//tr")
+                # Duyệt qua các hàng
+                for row in rowsbody:
+                    cols = row.find_elements(By.XPATH, "./td")
+                    row_data = [col.text.strip() for col in cols]
+                    # Đảm bảo chiều dài hàng phù hợp với số cột
+                    while len(row_data) < len(all_headers):
+                        row_data.append("")  # Thêm ô trống
+                    all_rows.append(row_data)
+
+                # Cuộn thanh cuộn ngang
+                current_scroll_position += scroll_step
+                driver.execute_script(
+                    f"arguments[0].scrollLeft = {current_scroll_position};",
+                    scrollable_div,
+                )
+                time.sleep(1)
+
+                # Kiểm tra cuộn xong chưa
+                new_scroll_position = driver.execute_script(
+                    "return arguments[0].scrollLeft;", scrollable_div
+                )
+                if new_scroll_position == current_scroll_position:
+                    break
+
+            # Lưu vào DataFrame
+            if not all_headers:
+                print("[ERROR] Không tìm thấy tiêu đề để tạo DataFrame.")
+                return
+
+            df = pd.DataFrame(all_rows, columns=all_headers)
+            df.to_csv(unique_output_file, index=False, encoding="utf-8-sig")
+            print(f"[SUCCESS]- Dữ liệu đã được lưu vào file: {unique_output_file}")
+
+        except Exception as e:
+            print(f"[ERROR] Không thể lấy dữ liệu từ bảng: {e}")
+            self.send_slack_notification(
+                "[FAILED] Chương trình chạy thất bại", self.webhook_url_hddt
+            )
+    
+    
+    # Task 4.1 xuất các hàng dữ liệu filter ở trang ( - Tra cứu hóa đơn điện tử mua vào - ) ra file csv        
+    def extract_table_mua_vao_to_csv_filter(self, driver, output_file_filter):
+        """Lấy dữ liệu từ bảng ngang có thanh cuộn và lưu vào file CSV."""
+        try:
+            # Tạo tên file duy nhất nếu cần
+            unique_output_file = self.get_unique_filename(output_file_filter)
             # Chờ bảng hiển thị
             table1 = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located(
@@ -840,6 +1008,71 @@ class crawler_hoaddondientu(base_crawler):
             self.send_slack_notification(
                 "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
             )
+            
+    # 4.1 xuất từng ảnh filter ( hóa đơn mua vào chi tiết ) của từng hàng dữ liệu bảng       
+    def extract_img_hoa_don_mua_vao_filter(self, driver):
+        try:
+            # Tìm tất cả phần tử với class 'ant-table-tbody'
+            elements2 = driver.find_elements(By.CLASS_NAME, "ant-table-tbody")
+            print(f"[DEBUG] Số phần tử với class='ant-table-tbody': {len(elements2)}")
+
+            # Chọn phần tử thứ hai (index 1)
+            if len(elements2) > 1:
+                tbody = elements2[1]
+            else:
+                raise Exception("[DEBUG] Không tìm thấy phần tử ant-table-tbody thứ hai.")
+
+            # Lấy tất cả các hàng hiện tại
+            rowsbody = tbody.find_elements(By.XPATH, ".//tr")
+            print(f"[DEBUG] Số hàng dữ liệu trong tbody: {len(rowsbody)}")
+
+            # Lặp qua từng hàng và click
+            for index, row in enumerate(rowsbody):
+                try:
+                    # Reset scroll position của trang
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(1)
+
+                    # Đưa con trỏ tới hàng và đảm bảo nó visible
+                    driver.execute_script("arguments[0].scrollIntoView(true);", row)
+                    ActionChains(driver).move_to_element(row).perform()
+                    time.sleep(1)
+                    
+                    print(f"[DEBUG] Click filter vào hàng thứ {index + 1}")
+                    row.click()
+                    time.sleep(2)
+
+                    # Click vào nút "Xem hóa đơn" chi tiết
+                    img_btn = driver.find_element(
+                        By.XPATH,
+                        '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[1]/div[2]/div/div[5]/button',
+                    )
+                    img_btn.click()
+                    print(f"[SUCCESS]- Finish click btn xem hóa đơn chi tiết ở hàng thứ {index + 1}")
+                    time.sleep(3)
+
+                    # Chụp màn hình với viewport mới
+                    base_file_name = f"hoadon_muavao_filter_chitiet_stt_{index + 1}.png"
+                    unique_file_name = self.get_unique_filename(base_file_name)
+                    self.capture_full_page(driver, unique_file_name)
+
+                    # Đóng modal và đợi nó đóng hoàn toàn
+                    close_btn = driver.find_element(By.CLASS_NAME, "ant-modal-close")
+                    close_btn.click()
+                    time.sleep(2)  # Đợi modal đóng hoàn toàn
+
+                except ElementNotInteractableException as e:
+                    print(f"[ERROR] Không thể click filter vào hàng thứ {index + 1}: ")
+                except Exception as e:
+                    print(f"[ERROR] Lỗi khác xảy ra với filter hàng thứ {index + 1}: ")
+
+        except Exception as e:
+            print(f"[ERROR] Lỗi chung của website khi chụp ảnh hóa đơn filter failed")
+            self.send_slack_notification(
+                "[ERROR] Chương trình chạy thất bại", self.webhook_url_hddt
+            )
+            
+            
 
     # 5. chọn vào tab ( - Tra cứu hóa đơn điện tử bán ra - ) để crawl dữ liệu
     def crawl_hoa_don_ban_ra(self, driver):
@@ -1117,8 +1350,8 @@ class crawler_hoaddondientu(base_crawler):
 
     def get_latest_files_by_timestamp(self, csv_pattern, img_pattern):
         """
-        Get the latest CSV and corresponding images based on creation timestamp.
-        Returns a tuple of (latest_csv_file, list_of_relevant_images).
+        Trả về danh sách các file CSV mới nhất phù hợp với pattern và các ảnh liên quan.
+        Mỗi cặp (csv_file, list_of_images) tương ứng với 1 file CSV.
         """
         try:
             # Get all matching files with their timestamps
@@ -1126,9 +1359,13 @@ class crawler_hoaddondientu(base_crawler):
             img_files = list(Path(".").glob(img_pattern))
 
             if not csv_files:
-                print(f"[DEBUG] No CSV files found matching pattern: {csv_pattern}")
+                print(f"[DEBUG] Không tìm thấy file CSV với pattern: {csv_pattern}")
                 return None, []
 
+            # Sắp xếp theo thời gian tạo mới nhất trước
+            csv_files.sort(key=os.path.getctime, reverse=True)
+            result = []
+            
             # Get the latest CSV file
             latest_csv = max(csv_files, key=os.path.getctime)
             print(f"[DEBUG] Latest CSV file: {latest_csv}")
@@ -1262,64 +1499,40 @@ class crawler_hoaddondientu(base_crawler):
     
     # Hàm lưu dữ liệu vào database
     def save_to_database(self, data, image_paths, drive_image_paths, company_id, company_name, loai_hoa_don):
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    for idx, (_, row) in enumerate(data.iterrows()):
-                        # Purpose? Unsed, should removed?
-                        image_path = image_paths[idx] if idx < len(image_paths) else ""
+        success_count = 0
+        failed_count = 0
 
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                for idx, (_, row) in enumerate(data.iterrows()):
+                    try:
                         drive_image_path = (
-                            drive_image_paths[idx]
-                            if idx < len(drive_image_paths)
-                            else ""
+                            drive_image_paths[idx] if idx < len(drive_image_paths) else ""
                         )
-                        # Chuyển đổi số hóa đơn thành chuỗi
-                        so_hoa_don = str(row.get("so_hoa_don", ""))
-                        
-                        # Thực hiện INSERT với ON CONFLICT
-                        invoice_query = """
-                            INSERT INTO data_hoadon (mau_so, ky_hieu, so_hoa_don, ngay_lap, mst_nguoi_mua, ten_nguoi_mua, mst_nguoi_ban, ten_nguoi_ban, 
-                                                    tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
-                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, company_name, loai_hoa_don)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
-                            ON CONFLICT (company_id, so_hoa_don, loai_hoa_don) DO UPDATE
-                            SET mau_so = EXCLUDED.mau_so,
-                            ngay_lap = EXCLUDED.ngay_lap,
-                            mst_nguoi_mua = EXCLUDED.mst_nguoi_mua,
-                            ten_nguoi_mua = EXCLUDED.ten_nguoi_mua,
-                            mst_nguoi_ban = EXCLUDED.mst_nguoi_ban,
-                            ten_nguoi_ban = EXCLUDED.ten_nguoi_ban,
-                            tong_tien_chua_thue = EXCLUDED.tong_tien_chua_thue,
-                            tong_tien_thue = EXCLUDED.tong_tien_thue,
-                            tong_tien_chiet_khau = EXCLUDED.tong_tien_chiet_khau,
-                            tong_tien_phi = EXCLUDED.tong_tien_phi,
-                            tong_tien_thanh_toan = EXCLUDED.tong_tien_thanh_toan,
-                            don_vi_tien_te = EXCLUDED.don_vi_tien_te,
-                            trang_thai = EXCLUDED.trang_thai,
-                            image_drive_path = EXCLUDED.image_drive_path,
-                            created_at = CURRENT_TIMESTAMP;
-                            """
 
-                        # Cập nhật invoice_values để thay thế None bằng chuỗi rỗng
+                        so_hoa_don = str(row.get("so_hoa_don", ""))
+
+                        # Chuyển đổi ngày lập
+                        try:
+                            ngay_lap = self.convert_date(row.get("ngay_lap", "01/01/1970"))
+                        except Exception as date_error:
+                            print(f"[WARNING] Lỗi convert ngày ở dòng {idx + 1}: {date_error}")
+                            ngay_lap = "1970-01-01"  # fallback an toàn
+
                         invoice_values = (
                             row.get("mau_so", ""),
                             row.get("ky_hieu", ""),
                             so_hoa_don,
-                            self.convert_date(row.get("ngay_lap", "")),
+                            ngay_lap,
                             row.get("mst_nguoi_mua", ""),
                             row.get("ten_nguoi_mua", ""),
                             row.get("mst_nguoi_ban", ""),
                             row.get("ten_nguoi_ban", ""),
                             self.convert_to_numeric(row.get("tong_tien_chua_thue", "")),
                             self.convert_to_numeric(row.get("tong_tien_thue", "")),
-                            self.convert_to_numeric(
-                                row.get("tong_tien_chiet_khau", "")
-                            ),
+                            self.convert_to_numeric(row.get("tong_tien_chiet_khau", "")),
                             self.convert_to_numeric(row.get("tong_tien_phi", "")),
-                            self.convert_to_numeric(
-                                row.get("tong_tien_thanh_toan", "")
-                            ),
+                            self.convert_to_numeric(row.get("tong_tien_thanh_toan", "")),
                             row.get("don_vi_tien_te", ""),
                             row.get("trang_thai", ""),
                             drive_image_path,
@@ -1328,16 +1541,41 @@ class crawler_hoaddondientu(base_crawler):
                             loai_hoa_don
                         )
 
-                        # Loại bỏ các giá trị rỗng
-                        invoice_values = [
-                            v if pd.notna(v) else "" for v in invoice_values
-                        ]  # Đảm bảo không có giá trị None hay NaN
+                        invoice_values = [v if pd.notna(v) else "" for v in invoice_values]
+
+                        invoice_query = """
+                            INSERT INTO data_hoadon (mau_so, ky_hieu, so_hoa_don, ngay_lap, mst_nguoi_mua, ten_nguoi_mua, mst_nguoi_ban, ten_nguoi_ban, 
+                                                    tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
+                                                    tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, company_name, loai_hoa_don)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
+                            ON CONFLICT (company_id, so_hoa_don, loai_hoa_don) DO UPDATE
+                            SET mau_so = EXCLUDED.mau_so,
+                                ngay_lap = EXCLUDED.ngay_lap,
+                                mst_nguoi_mua = EXCLUDED.mst_nguoi_mua,
+                                ten_nguoi_mua = EXCLUDED.ten_nguoi_mua,
+                                mst_nguoi_ban = EXCLUDED.mst_nguoi_ban,
+                                ten_nguoi_ban = EXCLUDED.ten_nguoi_ban,
+                                tong_tien_chua_thue = EXCLUDED.tong_tien_chua_thue,
+                                tong_tien_thue = EXCLUDED.tong_tien_thue,
+                                tong_tien_chiet_khau = EXCLUDED.tong_tien_chiet_khau,
+                                tong_tien_phi = EXCLUDED.tong_tien_phi,
+                                tong_tien_thanh_toan = EXCLUDED.tong_tien_thanh_toan,
+                                don_vi_tien_te = EXCLUDED.don_vi_tien_te,
+                                trang_thai = EXCLUDED.trang_thai,
+                                image_drive_path = EXCLUDED.image_drive_path,
+                                created_at = CURRENT_TIMESTAMP;
+                        """
 
                         cur.execute(invoice_query, invoice_values)
+                        success_count += 1
 
-            print("[SUCCESS] Dữ liệu hóa đơn đã được lưu thành công.")
-        except Exception as e:
-            print(f"[ERROR] Lỗi xảy ra khi lưu dữ liệu vào database. ")
+                    except Exception as e:
+                        print(f"[ERROR] ❌ Dòng {idx + 1} bị lỗi khi insert DB: {e}")
+                        failed_count += 1
+                        continue
+
+        print(f"[SUMMARY] ✅ Đã lưu thành công {success_count} dòng, ❌ thất bại {failed_count} dòng.")
+
 
     # Quy trình database chính
     def main_db_workflow(self, service, company_id, company_name, username, password):
@@ -1353,7 +1591,8 @@ class crawler_hoaddondientu(base_crawler):
         )
         
         for loai_hoa_don, csv_pattern, img_pattern in [
-            ("mua vào", "hoa_don_mua_vao*.csv", "hoadon_muavao_chitiet_stt_*.png"),
+            ("mua vào có mã", "hoa_don_mua_vao_co*.csv", "hoadon_muavao_chitiet_stt_*.png"),
+            ("mua vào không mã", "hoa_don_mua_vao_filter*.csv", "hoadon_muavao_filter_chitiet_stt_*.png"),
             ("bán ra", "hoa_don_ban_ra*.csv", "hoadon_banra_chitiet_stt_*.png"),
         ]:
             csv_file, images = self.get_latest_files_by_timestamp(csv_pattern, img_pattern)
@@ -1361,28 +1600,72 @@ class crawler_hoaddondientu(base_crawler):
                 print(f"[DEBUG] Processing {loai_hoa_don} data from {csv_file}")
                 df1 = pd.read_csv(csv_file)
                 
+                
                 # Đổi tên cột cho phù hợp với schema database
-                column_mapping = {
-                    "Ký hiệumẫu số": "mau_so",
-                    "Ký hiệuhóa đơn": "ky_hieu",
-                    "Số hóa đơn": "so_hoa_don",
-                    "Ngày lập": "ngay_lap",
-                    "Thông tin người bán": "thong_tin_hoa_don_mua_vao",  # File hóa đơn mua vào
-                    "Thông tin hóa đơn": "thong_tin_hoa_don_ban_ra",  # File hóa đơn bán ra
-                    "Tổng tiềnchưa thuế": "tong_tien_chua_thue",
-                    "Tổng tiền thuế": "tong_tien_thue",
-                    "Tổng tiềnchiết khấuthương mại": "tong_tien_chiet_khau",
-                    "Tổng tiền phí": "tong_tien_phi",
-                    "Tổng tiềnthanh toán": "tong_tien_thanh_toan",
-                    "Đơn vịtiền tệ": "don_vi_tien_te",
-                    "Trạng tháihóa đơn": "trang_thai",
-                }
-                df1.rename(columns=column_mapping, inplace=True)
-                print("[DEBUG] Đã đổi tên các cột trong file CSV:")
-                # print(df1.head())
+                if loai_hoa_don == "mua vào có mã":
+                    column_mapping = {
+                        "Ký hiệumẫu số": "mau_so",
+                        "Ký hiệuhóa đơn": "ky_hieu",
+                        "Số hóa đơn": "so_hoa_don",
+                        "Ngày lập": "ngay_lap",
+                        "Thông tin người bán": "thong_tin_hoa_don_mua_vao_co_ma",  # CHUẨN
+                        "Tổng tiềnchưa thuế": "tong_tien_chua_thue",
+                        "Tổng tiền thuế": "tong_tien_thue",
+                        "Tổng tiềnchiết khấuthương mại": "tong_tien_chiet_khau",
+                        "Tổng tiền phí": "tong_tien_phi",
+                        "Tổng tiềnthanh toán": "tong_tien_thanh_toan",
+                        "Đơn vịtiền tệ": "don_vi_tien_te",
+                        "Trạng tháihóa đơn": "trang_thai",
+                    }
+                    df1.rename(columns=column_mapping, inplace=True)
+                    print("[DEBUG] Đã đổi tên các cột trong file CSV:")
+                    # print(df1.head())
 
-                # Xử lý dữ liệu trong file CSV
-                df2 = df1.copy()
+                    # Xử lý dữ liệu trong file CSV
+                    df2 = df1.copy()
+                elif loai_hoa_don == "mua vào không mã":
+                    column_mapping = {
+                        "Ký hiệumẫu số": "mau_so",
+                        "Ký hiệuhóa đơn": "ky_hieu",
+                        "Số hóa đơn": "so_hoa_don",
+                        "Ngày lập": "ngay_lap",
+                        "Thông tin người bán": "thong_tin_hoa_don_mua_vao_khong_ma",
+                        "Tổng tiềnchưa thuế": "tong_tien_chua_thue",
+                        "Tổng tiền thuế": "tong_tien_thue",
+                        "Tổng tiềnchiết khấuthương mại": "tong_tien_chiet_khau",
+                        "Tổng tiền phí": "tong_tien_phi",
+                        "Tổng tiềnthanh toán": "tong_tien_thanh_toan",
+                        "Đơn vịtiền tệ": "don_vi_tien_te",
+                        "Trạng tháihóa đơn": "trang_thai",
+                    }
+                    df1.rename(columns=column_mapping, inplace=True)
+                    print("[DEBUG] Đã đổi tên các cột trong file CSV:")
+
+                    # Xử lý dữ liệu trong file CSV
+                    df2 = df1.copy()
+                elif loai_hoa_don == "bán ra":
+                    column_mapping = {
+                        "Ký hiệumẫu số": "mau_so",
+                        "Ký hiệuhóa đơn": "ky_hieu",
+                        "Số hóa đơn": "so_hoa_don",
+                        "Ngày lập": "ngay_lap",
+                        "Thông tin hóa đơn": "thong_tin_hoa_don_ban_ra",
+                        "Tổng tiềnchưa thuế": "tong_tien_chua_thue",
+                        "Tổng tiền thuế": "tong_tien_thue",
+                        "Tổng tiềnchiết khấuthương mại": "tong_tien_chiet_khau",
+                        "Tổng tiền phí": "tong_tien_phi",
+                        "Tổng tiềnthanh toán": "tong_tien_thanh_toan",
+                        "Đơn vịtiền tệ": "don_vi_tien_te",
+                        "Trạng tháihóa đơn": "trang_thai",
+                    }
+                    df1.rename(columns=column_mapping, inplace=True)
+                    print("[DEBUG] Đã đổi tên các cột trong file CSV:")
+
+                    # Xử lý dữ liệu trong file CSV
+                    df2 = df1.copy()
+
+                
+                
                 if loai_hoa_don == "bán ra":
                     # Tách MST người mua và Tên người mua từ cột "Thông tin hóa đơn"
                     df2[['mst_nguoi_mua', 'ten_nguoi_mua']] = df2['thong_tin_hoa_don_ban_ra'].str.extract(r'MST người mua:\s*([\d\-]+)\s*\n\s*Tên người mua:\s*(.+)')
@@ -1392,24 +1675,38 @@ class crawler_hoaddondientu(base_crawler):
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_mua', df2.pop('ten_nguoi_mua'))
                     print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn bán ra:")
                     # print(df2[['thong_tin_hoa_don_ban_ra', 'mst_nguoi_mua', 'ten_nguoi_mua']].head())
-                elif loai_hoa_don == "mua vào":
+                elif loai_hoa_don == "mua vào có mã":
                     # Tách MST người bán và Tên người bán từ cột "Thông tin người bán"
-                    df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao'].str.extract(r'MST người bán:\s*([\d\-]+)\s*\n\s*Tên người bán:\s*(.+)')
+                    df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao_co_ma'].str.extract(r'MST người bán:\s*([\d\-]+)\s*\n\s*Tên người bán:\s*(.+)')
                     # Chèn các cột mới vào vị trí tương ứng
-                    thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_mua_vao')
+                    thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_mua_vao_co_ma')
                     df2.insert(thong_tin_index, 'mst_nguoi_ban', df2.pop('mst_nguoi_ban'))
                     df2.insert(thong_tin_index + 1, 'ten_nguoi_ban', df2.pop('ten_nguoi_ban'))
-                    print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn mua vào:")
-                    # print(df2[['thong_tin_hoa_don_mua_vao', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
+                    print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn mua vào có mã:")
+                    # print(df2[['thong_tin_hoa_don_mua_vao_co_ma', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
+                elif loai_hoa_don == "mua vào không mã":
+                    # Tách MST người bán và Tên người bán từ cột "Thông tin người bán"
+                    df2[['mst_nguoi_ban', 'ten_nguoi_ban']] = df2['thong_tin_hoa_don_mua_vao_khong_ma'].str.extract(r'MST người bán:\s*([\d\-]+)\s*\n\s*Tên người bán:\s*(.+)')
+                    # Chèn các cột mới vào vị trí tương ứng
+                    thong_tin_index = df2.columns.get_loc('thong_tin_hoa_don_mua_vao_khong_ma')
+                    df2.insert(thong_tin_index, 'mst_nguoi_ban', df2.pop('mst_nguoi_ban'))
+                    df2.insert(thong_tin_index + 1, 'ten_nguoi_ban', df2.pop('ten_nguoi_ban'))
+                    print("[DEBUG] Đã xử lý dữ liệu cho hóa đơn mua vào có mã:")
+                    # print(df2[['thong_tin_hoa_don_mua_vao_khong_ma', 'mst_nguoi_ban', 'ten_nguoi_ban']].head())
+                
+                
+                
 
-                # Lưu dữ liệu vào database
+                # Lưu dữ liệu vào Driver va database
                 drive_image_paths = [
                     self.upload_image_to_drive(service, img, subfolder_id) for img in images if os.path.exists(img)
                 ]
 
                 self.save_to_database(df2, images, drive_image_paths, company_id, company_name, loai_hoa_don)
                 print(f"[DEBUG] Processed {loai_hoa_don} data from {csv_file}")
-
+                print(f"[DEBUG] Rows in df2: {df2.shape[0]}, Images: {len(images)}, Drive Images: {len(drive_image_paths)}")
+                
+                
     # Hàm lấy dữ liệu từ bảng company_information
     def fetch_company_information(self):
         query = (
@@ -1485,7 +1782,8 @@ class crawler_hoaddondientu(base_crawler):
             print("[ERROR] Google Drive service not initialized. Exiting.")
             exit(1)
 
-        output_file = "hoa_don_mua_vao.csv"
+        output_file = "hoa_don_mua_vao_co.csv"
+        output_file_filter = "hoa_don_mua_vao_filter.csv"
         output_file_ra = "hoa_don_ban_ra.csv"
         captcha_image_path = "captcha_image.svg"
 
@@ -1512,7 +1810,7 @@ class crawler_hoaddondientu(base_crawler):
             current_month = datetime.now().replace(day=1)
             
             # Bắt đầu từ tháng trước theo tham số --months-ago
-            start_month = current_month - relativedelta(months=args.months_ago)
+            start_month = current_month - relativedelta(months=args.months_ago + 1)
             
             # Tạo danh sách các tháng cần crawl
             months_to_crawl = [
@@ -1551,10 +1849,16 @@ class crawler_hoaddondientu(base_crawler):
                     for i, month in enumerate(months_to_crawl, start=1):
                         print(f"[DEBUG] Đang cào tháng {month} ({i}/{args.crawl_months})")
                         try:
-                            self.navigate_to_first_day_of_month(driver, month)
+                            # Mua vao co ma
                             self.crawl_hoa_don_mua_vao(driver)
                             self.extract_table_mua_vao_to_csv(driver, output_file)
                             self.extract_img_hoa_don_mua_vao(driver)
+                            
+                            # Mua vao khong ma
+                            self.crawl_hoa_don_mua_vao_filter(driver)
+                            self.extract_table_mua_vao_to_csv_filter(driver, output_file_filter)
+                            self.extract_img_hoa_don_mua_vao_filter(driver)
+                            
                             self.crawl_hoa_don_ban_ra(driver)
                             self.extract_table_ban_ra_to_csv(driver, output_file_ra)
                             self.extract_img_hoa_don_ban_ra(driver)
@@ -1634,4 +1938,4 @@ class crawler_hoaddondientu(base_crawler):
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")
-            # New
+            # New code
