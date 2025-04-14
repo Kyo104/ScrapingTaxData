@@ -15,5 +15,5 @@ CREATE TABLE company_information (
 INSERT INTO company_information (company_id, company_name, thue_username, thue_password, hoadon_username, hoadon_password, bhxh_username, bhxh_password) 
 VALUES 
     ('1001', 'Công ty A1', '0101652097-ql', 'At2025$$', '0100995373', 'sa4%5AG@', '0101850613', '@ATDT2024'),
-    ('1002', 'Công_ty_Alpha4', '0101652097-ql', 'At2025$$', '0101652097', 'At2026@@@', '0101850613', '@ATDT2024');
+    ('1002', 'Công ty B2', NULL, NULL, NULL, NULL, '0101850613', '@ATDT2024');
     
