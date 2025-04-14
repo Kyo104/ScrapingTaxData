@@ -53,8 +53,8 @@ RUN apt-get update && apt-get install -y wget curl unzip && \
     echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list && \
     apt-get update && apt-get install -y google-chrome-stable
 
-# Install ChromeDriver compatible with Chrome 133
-RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/133.0.6943.53/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip && \
+# Install ChromeDriver compatible with Chrome 135
+RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/135.0.7049.84/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip && \
     unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
     mv /usr/local/bin/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
     chmod +x /usr/local/bin/chromedriver
