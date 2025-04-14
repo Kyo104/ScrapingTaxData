@@ -8,9 +8,29 @@ from src.crawler_thuedientu import crawler_thuedientu
 from src.crawler_hoadondientu import crawler_hoaddondientu
 
 if __name__ == '__main__':
-    crawler_bhxh = crawler_baohiemxahoi()
-    crawler_bhxh.main_logic()
-    crawler_tdt = crawler_thuedientu()
-    crawler_tdt.main_logic()
-    crawler_hddt = crawler_hoaddondientu()
-    crawler_hddt.main_logic()
+    try:
+        crawler_bhxh = crawler_baohiemxahoi()
+        crawler_bhxh.main_logic()
+    except Exception as e:
+        print("\n" + "="*50)
+        print("[❌] Cảnh báo ở crawler_baohiemxahoi")
+        print(f"Chi tiết cảnh báo: {e}")
+        print("="*50 + "\n")
+
+    try:
+        crawler_tdt = crawler_thuedientu()
+        crawler_tdt.main_logic()
+    except Exception as e:
+        print("\n" + "="*50)
+        print("[❌] Cảnh báo ở crawler_thuedientu")
+        print(f"Chi tiết cảnh báo: {e}")
+        print("="*50 + "\n")
+
+    try:
+        crawler_hddt = crawler_hoaddondientu()
+        crawler_hddt.main_logic()
+    except Exception as e:
+        print("\n" + "="*50)
+        print("[❌] Cảnh báo ở crawler_hoaddondientu")
+        print(f"Chi tiết cảnh báo: {e}")
+        print("="*50 + "\n")
