@@ -408,7 +408,7 @@ class crawler_hoaddondientu(base_crawler):
                     
                 # Kiểm tra nếu có nút logout thì đăng nhập thành công
                 try:
-                    X_button = WebDriverWait(driver, 15).until(
+                    X_button = WebDriverWait(driver, 30).until(
                         EC.element_to_be_clickable(
                             (By.XPATH, "/html/body/div[1]/section/header/div[2]/button[2]")
                         )               
@@ -466,6 +466,7 @@ class crawler_hoaddondientu(base_crawler):
         tra_cuu_button = driver.find_element(
             By.XPATH,
             '/html/body/div[1]/section/section/div/div/div/div/div[8]/div/span',
+            
         )
         
         tra_cuu_button.click()
@@ -562,13 +563,6 @@ class crawler_hoaddondientu(base_crawler):
         print("[SUCCESS]- Finish click vào dropdown ket_qua_kiem_tra_1")
         time.sleep(2)
         
-        # # Click vào item "Đã cấp mã hóa đơn"
-        # item_to_select = driver.find_element(
-        #     By.XPATH, '//div[contains(text(), "Đã cấp mã hóa đơn")]'
-        # )
-        # item_to_select.click()
-        # print("[SUCCESS] - Đã chọn 'Đã cấp mã hóa đơn'")
-        # time.sleep(2)
         
         # Đợi dropdown thực tế render ra và chứa option mong muốn
         wait = WebDriverWait(driver, 10)
@@ -588,6 +582,22 @@ class crawler_hoaddondientu(base_crawler):
         tim_kiem.click()
         print("[SUCCESS]- Finish click tìm kiếm hóa đơn mua vào")
         time.sleep(2)
+        
+        # fill 50 hoa don ==============================
+        # Bước 1: Click vào dropdown
+        dropdown_xpath = '//*[@id="__next"]/section/section/main/div/div/div/div/div[3]/div[2]/div[3]/div[2]/div[1]/div[2]/div/div[4]/div/div'
+        dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, dropdown_xpath)))
+        dropdown.click()  
+        print("[SUCCESS]- Finish click dropdown fill so luong hoadon")
+        time.sleep(2)
+        
+        option_50 = wait.until(EC.element_to_be_clickable((
+            By.XPATH,
+            '//div[contains(@class, "ant-select-dropdown") and contains(@class, "ant-select-dropdown--single")]//li[contains(text(), "50")]'
+        )))
+        option_50.click()
+        print("[SUCCESS] - Đã chọn vào fill 50 hóa đơn")
+        
         
     # 3.1 chọn vào filter (Cục thuế đã nhận không mã) ở tab ( - Tra cứu hóa đơn điện tử mua vào - ) để crawl dữ liệu
     def crawl_hoa_don_mua_vao_filter(self, driver):
@@ -1938,4 +1948,4 @@ class crawler_hoaddondientu(base_crawler):
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")
-            # New code
+            # New code 1951 line
