@@ -1343,10 +1343,63 @@ class crawler_hoaddondientu(base_crawler):
         return datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d")
 
     def convert_to_numeric(self, value):
-        """Giữ nguyên số có dấu '.' và nếu trống thì lưu rỗng."""
-        if isinstance(value, str) and value.strip():
-            return value
-        return ""
+        """
+        Chuyển chuỗi số thành dạng chuẩn, chuyển đổi dấu chấm sang dấu phẩy
+        để giữ lại số 0 đuôi khi lưu trữ CSV.
+        """
+        if not isinstance(value, str) or not value.strip():
+            return ""
+            
+        value = value.strip()
+        original_value = value  # Lưu lại giá trị ban đầu
+        
+        try:
+            # Xác định format dựa trên dấu phân cách
+            has_comma = ',' in value
+            has_dot = '.' in value
+            
+            # Trường hợp đặc biệt: đã có định dạng với dấu chấm (20.000, 200.000, v.v.)
+            if has_dot and not has_comma:
+                # Chuyển đổi trực tiếp từ dấu chấm sang dấu phẩy
+                return value.replace('.', ',')
+                
+            # Trường hợp đã có dấu phẩy 
+            if has_comma and not has_dot:
+                # Giữ nguyên vì đã ở định dạng mong muốn
+                return value
+                
+            # Trường hợp có cả dấu chấm và dấu phẩy
+            if has_comma and has_dot:
+                # Kiểm tra vị trí tương đối của dấu phẩy và dấu chấm
+                last_comma = value.rindex(',')
+                last_dot = value.rindex('.')
+                
+                if last_comma > last_dot:
+                    # Format châu Âu: '.' là dấu phân cách nghìn, ',' là dấu thập phân
+                    # Đã đúng định dạng mong muốn
+                    return value
+                else:
+                    # Format Việt Nam/Mỹ: ',' là dấu phân cách nghìn, '.' là dấu thập phân
+                    # Đổi dấu chấm thành dấu phẩy, và dấu phẩy thành dấu chấm
+                    temp = value.replace('.', 'DOT').replace(',', 'COMMA')
+                    return temp.replace('DOT', ',').replace('COMMA', '.')
+            
+            # Không có dấu phân cách nào
+            # Với trường hợp số lớn không có dấu phân cách, thêm dấu phẩy
+            try:
+                num = float(value)
+                if num.is_integer() and int(num) >= 1000:
+                    # Định dạng số với dấu phẩy phân cách hàng nghìn
+                    formatted = format(int(num), ',').replace(',', '.')
+                    # Chuyển dấu chấm sang dấu phẩy
+                    return formatted.replace('.', ',')
+                return value
+            except ValueError:
+                return value
+                
+        except Exception as e:
+            print(f"[ERROR] Lỗi chuyển đổi giá trị: {value} - {str(e)}")
+            return original_value  # Trả về giá trị ban đầu nếu có lỗi
 
     def get_latest_file(self, pattern):
         files = list(Path(".").glob(pattern))
@@ -1948,4 +2001,4 @@ class crawler_hoaddondientu(base_crawler):
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")
-            # New code 1951 line
+            # 2004 New code line
