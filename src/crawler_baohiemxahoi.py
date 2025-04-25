@@ -776,7 +776,7 @@ class crawler_baohiemxahoi(base_crawler):
                     continue  # Bỏ qua công ty này và thử với công ty tiếp theo
                 
                 # Số lần thử lại tối đa nếu crawl thất bại
-                max_retries = 3 
+                max_retries = 5 
                 for month in months_to_run:
                     print(f"\n[DEBUG] Đang xử lý tháng {month} cho công ty với id {company_id}")
                     retry_count = 0
@@ -801,10 +801,10 @@ class crawler_baohiemxahoi(base_crawler):
                                 company_success += 1
                                 success_flag = True  # Đánh dấu thành công
                             else:
-                                print(f"[WARNING] Tháng {month} của công ty với id {company_id} không có dữ liệu. Thực hiện retry 3 lần...")
+                                print(f"[WARNING] Tháng {month} của công ty với id {company_id} không có dữ liệu. Thực hiện retry 5 lần...")
                                 data_retries = 0
                                 data_success = False
-                                while data_retries < 3 and not data_success:
+                                while data_retries < 5 and not data_success:
                                     data_retries += 1
                                     print(f"[INFO] Retry lần {data_retries} cho tháng {month}...")
                                     try:
@@ -833,7 +833,7 @@ class crawler_baohiemxahoi(base_crawler):
                                     success_flag = True
                                 else:
                                     company_failure += 1
-                                    print(f"[FAILED] Tháng {month} không có dữ liệu sau 3 lần retry.")
+                                    print(f"[FAILED] Tháng {month} không có dữ liệu sau 5 lần retry.")
                                 break  # Thoát luôn nếu không có dữ liệu
 
                             # Đóng tab hiện tại sau khi xử lý thành công
