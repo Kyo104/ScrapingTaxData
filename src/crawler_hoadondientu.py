@@ -32,30 +32,30 @@ class crawler_hoaddondientu(base_crawler):
     # Class level CONSTANT
     # Tạo bảng nếu chưa tồn tại
     CREATE_TABLE_QUERY = """
-    CREATE TABLE IF NOT EXISTS data_hoadon (
-        id SERIAL PRIMARY KEY,
-        mau_so VARCHAR(255),
-        ky_hieu VARCHAR(255),
-        so_hoa_don VARCHAR(255),
-        ngay_lap DATE,
-        mst_nguoi_mua VARCHAR(255),  -- Mã số thuế người mua
-        ten_nguoi_mua TEXT,  -- Tên người mua
-        mst_nguoi_ban VARCHAR(255),  -- Mã số thuế người bán
-        ten_nguoi_ban TEXT,  -- Tên người bán
-        tong_tien_chua_thue VARCHAR,
-        tong_tien_thue VARCHAR,
-        tong_tien_chiet_khau VARCHAR,
-        tong_tien_phi VARCHAR,
-        tong_tien_thanh_toan VARCHAR,
-        don_vi_tien_te VARCHAR(255),
-        trang_thai VARCHAR(255),
-        image_drive_path VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        company_id VARCHAR(255),
-        company_name VARCHAR(255),
-        loai_hoa_don VARCHAR(100), -- Thêm cột loại hóa đơn
-        UNIQUE (company_id, so_hoa_don, loai_hoa_don) 
-    );
+        CREATE TABLE IF NOT EXISTS data_hoadon (
+            id SERIAL PRIMARY KEY,
+            mau_so VARCHAR(255),
+            ky_hieu VARCHAR(255),
+            so_hoa_don VARCHAR(255),
+            ngay_lap DATE,
+            mst_nguoi_mua VARCHAR(255),
+            ten_nguoi_mua TEXT,
+            mst_nguoi_ban VARCHAR(255),
+            ten_nguoi_ban TEXT,
+            tong_tien_chua_thue VARCHAR,
+            tong_tien_thue VARCHAR,
+            tong_tien_chiet_khau VARCHAR,
+            tong_tien_phi VARCHAR,
+            tong_tien_thanh_toan VARCHAR,
+            don_vi_tien_te VARCHAR(255),
+            trang_thai VARCHAR(255),
+            image_drive_path VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            company_id VARCHAR(255),
+            company_name VARCHAR(255),
+            loai_hoa_don VARCHAR(100),
+            CONSTRAINT unique_invoice UNIQUE (company_id, so_hoa_don, ky_hieu, loai_hoa_don, ngay_lap)
+        );
     """
     # Tạo khóa ngoại nếu chưa tồn tại
     ADD_FOREIGN_KEY_QUERY = """
@@ -1611,9 +1611,8 @@ class crawler_hoaddondientu(base_crawler):
                                                     tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
                                                     tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, company_name, loai_hoa_don)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
-                            ON CONFLICT (company_id, so_hoa_don, loai_hoa_don) DO UPDATE
+                            ON CONFLICT ON CONSTRAINT unique_invoice DO UPDATE
                             SET mau_so = EXCLUDED.mau_so,
-                                ngay_lap = EXCLUDED.ngay_lap,
                                 mst_nguoi_mua = EXCLUDED.mst_nguoi_mua,
                                 ten_nguoi_mua = EXCLUDED.ten_nguoi_mua,
                                 mst_nguoi_ban = EXCLUDED.mst_nguoi_ban,
@@ -1628,7 +1627,7 @@ class crawler_hoaddondientu(base_crawler):
                                 image_drive_path = EXCLUDED.image_drive_path,
                                 created_at = CURRENT_TIMESTAMP;
                         """
-
+                        print("INSERT Data: ", invoice_values)
                         cur.execute(invoice_query, invoice_values)
                         success_count += 1
 
