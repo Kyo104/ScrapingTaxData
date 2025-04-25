@@ -6,9 +6,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/app/venv/bin:$PATH"
 ENV DISPLAY=:99
 
+# Set the timezone environment variable
+ENV TZ=Asia/Ho_Chi_Minh
+
+# Link the correct timezone file to /etc/localtime and update the system configuration
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y software-properties-common tzdata && \
     add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && \
     apt-get install -y \
