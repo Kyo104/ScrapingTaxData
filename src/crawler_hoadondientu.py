@@ -54,7 +54,7 @@ class crawler_hoaddondientu(base_crawler):
             company_id VARCHAR(255),
             company_name VARCHAR(255),
             loai_hoa_don VARCHAR(100),
-            CONSTRAINT unique_invoice UNIQUE (company_id, so_hoa_don, ky_hieu, loai_hoa_don, ngay_lap)
+            UNIQUE (company_id, so_hoa_don, ky_hieu, loai_hoa_don, ngay_lap)
         );
     """
     # Tạo khóa ngoại nếu chưa tồn tại
@@ -1611,7 +1611,7 @@ class crawler_hoaddondientu(base_crawler):
                                                     tong_tien_chua_thue, tong_tien_thue, tong_tien_chiet_khau, tong_tien_phi, 
                                                     tong_tien_thanh_toan, don_vi_tien_te, trang_thai, image_drive_path, created_at, company_id, company_name, loai_hoa_don)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
-                            ON CONFLICT ON CONSTRAINT unique_invoice DO UPDATE
+                            ON CONFLICT (company_id, so_hoa_don, ky_hieu, loai_hoa_don, ngay_lap) DO UPDATE
                             SET mau_so = EXCLUDED.mau_so,
                                 mst_nguoi_mua = EXCLUDED.mst_nguoi_mua,
                                 ten_nguoi_mua = EXCLUDED.ten_nguoi_mua,
@@ -2000,4 +2000,4 @@ class crawler_hoaddondientu(base_crawler):
             self.clean_data(".", file_extensions=(".csv", ".png"))
             driver.quit()
             print("Driver closed.")
-            # 2004 New code line
+            # 2003 New code line
