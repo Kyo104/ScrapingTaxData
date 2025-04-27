@@ -53,6 +53,7 @@ class crawler_thuedientu(base_crawler):
             help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
         )
         self.parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
+        self.parser.add_argument("--module", default="ALL", required=False, help="Chọn module cần chạy")
         return self.parser.parse_args()
 
     # task 1 Đăng nhập vào website https://thuedientu.gdt.gov.vn/etaxnnt/Request
@@ -744,6 +745,11 @@ class crawler_thuedientu(base_crawler):
         print("[INFO] Main logic: Workflow ThueDienTu.")
 
         args = self.parse_arguments()
+        
+        if args.module != "TDT" and args.module != "ALL":
+            print("[DEBUG] Skip module TDT.")
+            return
+        
         # Initialize database configuration
         db_config = {
             "host": self.db_host,

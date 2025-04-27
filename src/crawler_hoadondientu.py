@@ -103,6 +103,7 @@ class crawler_hoaddondientu(base_crawler):
         parser.add_argument("--month", default=str(current_date.month), required=False, help="Tháng cần crawl (1-12)")
         parser.add_argument("--year", type=str, required=False, default=str(current_date.year), help="Năm cần tra cứu (1990-hiện tại)")
         parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
+        parser.add_argument("--module", default="ALL", required=False, help="Chọn module cần chạy")
 
         self.args = parser.parse_args()
 
@@ -1827,6 +1828,11 @@ class crawler_hoaddondientu(base_crawler):
         """Chạy chương trình chính"""
         print("[INFO] Main logic: Workflow HoaDonDienTu.")
         args = self.parse_arguments()
+        
+        if args.module != "HDDT" and args.module != "ALL":
+            print("[DEBUG] Skip module HDDT.")
+            return
+        
         self.ensure_database_exists(args)
 
         self.db_config = {

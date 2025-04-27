@@ -60,6 +60,7 @@ class crawler_baohiemxahoi(base_crawler):
             help="Số lượng tháng muốn crawl. Mặc định: 1 tháng",
         )
         self.parser.add_argument("--company", default=None, required=False, help="Tên công ty cần crawl.")
+        self.parser.add_argument("--module", default="ALL", required=False, help="Chọn module cần chạy")
         return self.parser.parse_args()
 
     # Đăng nhập vào website https://dichvucong.baohiemxahoi.gov.vn/#/index
@@ -708,6 +709,11 @@ class crawler_baohiemxahoi(base_crawler):
         """Chạy chương trình chính"""
         print("[INFO] Main logic: Workflow BaoHiemXaHoi.")
         args = self.parse_arguments()
+        
+        if args.module != "BHXH" and args.module != "ALL":
+            print("[DEBUG] Skip module BHXH.")
+            return
+            
         captcha_image_path = "captcha_image.png"
 
         # Khởi tạo trình duyệt
