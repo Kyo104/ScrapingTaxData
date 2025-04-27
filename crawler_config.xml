@@ -43,6 +43,18 @@
           <description>Tên công ty để chạy đơn lẻ.</description>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+		<hudson.model.ChoiceParameterDefinition>
+            <name>module</name>
+            <choices class="java.util.Arrays$ArrayList">
+              <a class="string-array">
+                <string>ALL</string>
+                <string>BHXH</string>
+                <string>TDT</string>
+                <string>HDDT</string>
+              </a>
+            </choices>
+        <description>Chọn module: ALL chạy cả 3 module. BHXH chỉ chạy module BHXH. TDT chỉ chạy module TDT. HDDT chỉ chạy module HDDT.</description>
+        </hudson.model.ChoiceParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
     <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
@@ -65,19 +77,23 @@
                     def company = &apos;None&apos;              
                     if (env.company != &apos;&apos;) {
                         company = env.company
+                    }      
+                    def module = &apos;ALL&apos;              
+                    if (env.module != &apos;&apos;) {
+                        module = env.module
                     }
                     sh &quot;ssh-keygen -f \&quot;/var/jenkins_home/.ssh/known_hosts\&quot; -R \&quot;crawler_app\&quot;&quot;
                     if (env.month == &apos;&apos; &amp;&amp; env.year == &apos;&apos; &amp;&amp; env.months_ago == &apos;&apos; &amp;&amp; env.crawl_months == &apos;&apos;){
-                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --company ${company}\&quot;&quot;
+                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --company ${company} --module ${module}\&quot;&quot;
                     }
                     else if (env.month != &apos;&apos; &amp;&amp; env.year != &apos;&apos; &amp;&amp; env.months_ago == &apos;&apos; &amp;&amp; env.crawl_months == &apos;&apos;){
-                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --month ${env.month} --year ${env.year} --company ${company}\&quot;&quot;
+                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --month ${env.month} --year ${env.year} --company ${company} --module ${module}\&quot;&quot;
                     }
                     else if (env.month == &apos;&apos; &amp;&amp; env.year == &apos;&apos; &amp;&amp; env.months_ago != &apos;&apos; &amp;&amp; env.crawl_months != &apos;&apos;){
-                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --months-ago ${env.months_ago} --crawl-months ${env.crawl_months} --company ${company}\&quot;&quot;
+                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --months-ago ${env.months_ago} --crawl-months ${env.crawl_months} --company ${company}  --module ${module}\&quot;&quot;
                     }
                     else if (env.month != &apos;&apos; &amp;&amp; env.year != &apos;&apos; &amp;&amp; env.months_ago != &apos;&apos; &amp;&amp; env.crawl_months != &apos;&apos;){
-                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --month ${env.month} --year ${env.year} --months-ago ${env.months_ago} --crawl-months ${env.crawl_months} --company ${company}\&quot;&quot;
+                        sh &quot;sshpass -p root ssh -o StrictHostKeyChecking=no root@crawler_app \&quot;cd /app/ &amp;&amp; source venv/bin/activate &amp;&amp; source .env &amp;&amp; python3.12 -m app.crawler_app --month ${env.month} --year ${env.year} --months-ago ${env.months_ago} --crawl-months ${env.crawl_months} --company ${company} --module ${module}\&quot;&quot;
                     }
                     
                 }
